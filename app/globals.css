@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: #09090b;
+  color: #f4f4f5;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Slim dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Markdown body */
+.md-body {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  word-break: break-word;
+}
+.md-body > *:first-child {
+  margin-top: 0;
+}
+.md-body > *:last-child {
+  margin-bottom: 0;
+}
+.md-body p {
+  margin: 0.55em 0;
+}
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 1em 0 0.4em;
+  color: #fafafa;
+}
+.md-body h1 {
+  font-size: 1.15rem;
+}
+.md-body h2 {
+  font-size: 1.05rem;
+}
+.md-body h3 {
+  font-size: 0.95rem;
+}
+.md-body ul,
+.md-body ol {
+  margin: 0.5em 0;
+  padding-left: 1.35em;
+}
+.md-body ul {
+  list-style: disc;
+}
+.md-body ol {
+  list-style: decimal;
+}
+.md-body li {
+  margin: 0.25em 0;
+}
+.md-body li::marker {
+  color: #71717a;
+}
+.md-body a {
+  color: #a5b4fc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-body blockquote {
+  border-left: 2px solid #3f3f46;
+  padding-left: 0.8em;
+  margin: 0.6em 0;
+  color: #a1a1aa;
+}
+.md-body hr {
+  border-color: #27272a;
+  margin: 1em 0;
+}
+.md-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.7em 0;
+  font-size: 0.82rem;
+}
+.md-body th,
+.md-body td {
+  border: 1px solid #27272a;
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+.md-body th {
+  background: #18181b;
+  font-weight: 600;
+}
+.md-body code:not(pre code) {
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
+  font-size: 0.82em;
+  font-family: var(--font-mono);
+  color: #e4e4e7;
+}
+.md-body pre {
+  background: #101013;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  overflow-x: auto;
+  margin: 0.7em 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+.md-body pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  color: #e4e4e7;
+}
+
+/* Thinking shimmer while streaming */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.streaming-dot {
+  animation: pulse-soft 1.2s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up {
+  animation: fade-up 0.25s ease-out both;
+}

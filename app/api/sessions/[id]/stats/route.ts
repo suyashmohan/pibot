@@ -1,0 +1,26 @@
+import { ensureClient } from "@/lib/pi/manager";
+import { fail, ok, toErrorMessage } from "@/lib/api";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type Params = { params: Promise<{ id: string }> };
+
+export async function GET(_req: Request, { params }: Params) {
+  const { id } = await params;
+  try {
+    const client = await ensureClient(id);
+    const [stateRes, statsRes] = await Promise.all([
+      client.send({ type: "get_state" }),
+      client.send({ type: "get_session_stats" }),
+    ]);
+    return ok({
+      state: stateRes.success ? stateRes.data : null,
+      stats: statsRes.success ? statsRes.data : null,
+      stateError: stateRes.success ? null : String(stateRes.error ?? "get_state failed"),
+      statsError: statsRes.success ? null : String(statsRes.error ?? "stats failed"),
+    });
+  } catch (err) {
+    return fail(toErrorMessage(err), 500);
+  }
+}

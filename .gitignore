@@ -1,0 +1,11 @@
+node_modules/
+.next/
+out/
+data/*
+!data/.gitkeep
+*.db-*
+drizzle/*.sql
+drizzle/meta/
+.env
+!.env.example
+.DS_Store
