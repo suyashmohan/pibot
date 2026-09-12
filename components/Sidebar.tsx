@@ -11,59 +11,50 @@ import {
   Plus,
   Search,
   Trash2,
+  X,
 } from "lucide-react";
 import { cn, timeAgo, truncate } from "@/lib/utils";
+import { loadCollapsedPaths, saveCollapsedPaths, sidebarTranslateClass } from "@/lib/layout";
 import type { ProjectListItem, SessionListItem } from "@/lib/client-api";
-
-const COLLAPSED_KEY = "pibot.project.collapsed";
-
-function loadCollapsed(): Set<string> {
-  try {
-    const raw = localStorage.getItem(COLLAPSED_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw) as unknown;
-    return new Set(Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : []);
-  } catch {
-    return new Set();
-  }
-}
 
 export function Sidebar({
   sessions,
   projects,
   activeId,
+  open,
+  onClose,
   onSelect,
   onNew,
   onNewInProject,
   onDelete,
   onPinProject,
   onUnpinProject,
-  collapsed,
 }: {
   sessions: SessionListItem[];
   projects: ProjectListItem[];
   activeId: string | null;
+  open: boolean | null;
+  onClose: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
   onNewInProject: (cwd: string) => void;
   onDelete: (id: string) => void;
   onPinProject: (path: string) => Promise<string | null>;
   onUnpinProject: (path: string) => void;
-  collapsed: boolean;
 }) {
   const [q, setQ] = useState("");
-  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(loadCollapsed);
+  // SSR-safe: start uncollapsed (matches SSR), hydrate prefs after mount.
+  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setCollapsedPaths(loadCollapsedPaths());
+  }, []);
   const [adding, setAdding] = useState(false);
   const [addValue, setAddValue] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [addingBusy, setAddingBusy] = useState(false);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsedPaths]));
-    } catch {
-      /* ignore */
-    }
+    saveCollapsedPaths(collapsedPaths);
   }, [collapsedPaths]);
 
   // Always keep the active session's project expanded.
@@ -149,19 +140,34 @@ export function Sidebar({
     setAdding(false);
   };
 
-  if (collapsed) return null;
   const searching = q.trim().length > 0;
 
   return (
-    <aside className="flex h-full w-[300px] shrink-0 flex-col border-r border-zinc-800/80 bg-zinc-950">
+    <aside
+      className={cn(
+        "fixed inset-y-0 left-0 z-40 flex h-full w-[86vw] max-w-[320px] flex-col border-r border-zinc-800/80 bg-zinc-950 transition-transform duration-200 ease-out md:static md:z-auto md:w-[280px] md:max-w-none md:shrink-0 lg:w-[300px]",
+        sidebarTranslateClass(open),
+      )}
+      aria-hidden={open === false}
+    >
       <div className="p-3">
-        <button
-          onClick={onNew}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-100 px-3 py-2.5 text-[13.5px] font-medium text-zinc-950 transition hover:bg-white"
-        >
-          <MessageSquarePlus size={16} />
-          New session
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onNew}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-100 px-3 py-2.5 text-[13.5px] font-medium text-zinc-950 transition hover:bg-white"
+          >
+            <MessageSquarePlus size={16} />
+            New session
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded-xl p-2.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200 md:hidden"
+            title="Close sidebar"
+            aria-label="Close sidebar"
+          >
+            <X size={16} />
+          </button>
+        </div>
         <div className="mt-2.5 flex items-center gap-2 rounded-xl bg-zinc-900/70 px-3 py-2">
           <Search size={13} className="shrink-0 text-zinc-500" />
           <input

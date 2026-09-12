@@ -10,6 +10,7 @@ import {
   FolderGit2,
   GitFork,
   Loader2,
+  MoreHorizontal,
   Pencil,
   Shrink,
   Sparkles,
@@ -63,6 +64,7 @@ export function ChatView({
   const [nameDraft, setNameDraft] = useState("");
   const [showCmds, setShowCmds] = useState(false);
   const [showBash, setShowBash] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [bashCmd, setBashCmd] = useState("");
   const [bashOut, setBashOut] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -153,6 +155,23 @@ export function ChatView({
     setEditingName(false);
   };
 
+  const copyLast = () => {
+    const last = [...s.baseMessages].reverse().find((m) => m.role === "assistant");
+    const t = last
+      ? ((last as { content?: Array<{ type?: string; text?: string }> }).content ?? [])
+          .filter((b) => b.type === "text")
+          .map((b) => b.text ?? "")
+          .join("")
+      : "";
+    if (t) void navigator.clipboard.writeText(t);
+  };
+
+  const exportHtml = async () => {
+    const r = await control("export_html");
+    const p = (r.data as { response?: { data?: { path?: string } } } | undefined)?.response?.data?.path;
+    if (r.ok) s.pushToast("info", p ? `Exported to ${p}` : "Exported.");
+  };
+
   const runBash = async () => {
     if (!bashCmd.trim()) return;
     setBashOut("Running…");
@@ -194,7 +213,7 @@ export function ChatView({
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col bg-zinc-950">
       {/* Header */}
-      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/90 px-4 py-2.5 backdrop-blur">
+      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/90 px-3 py-2.5 backdrop-blur sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
           {editingName ? (
             <input
@@ -256,6 +275,28 @@ export function ChatView({
             )}
           </div>
 
+          {/* Mobile overflow menu */}
+          <div className="relative md:hidden">
+            <HeaderBtn title="More actions" onClick={() => setShowMenu((v) => !v)} active={showMenu}>
+              <MoreHorizontal size={15} />
+            </HeaderBtn>
+            {showMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                <div className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-zinc-700/70 bg-zinc-900 py-1 shadow-2xl">
+                  <MenuRow label="Slash commands" onClick={() => { setShowMenu(false); setShowCmds((v) => !v); }} />
+                  <MenuRow label="Bash console" onClick={() => { setShowMenu(false); setShowBash((v) => !v); }} />
+                  <MenuRow label="Compact context" onClick={() => { setShowMenu(false); void control("compact"); }} />
+                  <MenuRow label="Copy last reply" onClick={() => { setShowMenu(false); copyLast(); }} />
+                  <MenuRow label="Export session (HTML)" onClick={() => { setShowMenu(false); void exportHtml(); }} />
+                  <MenuRow label="Clear queued messages" onClick={() => { setShowMenu(false); void control("clear_queue"); }} />
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Full action row: tablet and up */}
+          <div className="hidden items-center gap-1.5 md:flex">
           <HeaderBtn title="Available slash commands" onClick={() => setShowCmds((v) => !v)} active={showCmds}>
             <Braces size={14} />
           </HeaderBtn>
@@ -269,29 +310,10 @@ export function ChatView({
           >
             <Shrink size={14} />
           </HeaderBtn>
-          <HeaderBtn
-            title="Copy last assistant message"
-            onClick={() => {
-              const last = [...s.baseMessages].reverse().find((m) => m.role === "assistant");
-              const t = last
-                ? ((last as { content?: Array<{ type?: string; text?: string }> }).content ?? [])
-                    .filter((b) => b.type === "text")
-                    .map((b) => b.text ?? "")
-                    .join("")
-                : "";
-              if (t) void navigator.clipboard.writeText(t);
-            }}
-          >
+          <HeaderBtn title="Copy last assistant message" onClick={copyLast}>
             <Copy size={14} />
           </HeaderBtn>
-          <HeaderBtn
-            title="Export session to HTML"
-            onClick={async () => {
-              const r = await control("export_html");
-              const p = (r.data as { response?: { data?: { path?: string } } } | undefined)?.response?.data?.path;
-              if (r.ok) s.pushToast("info", p ? `Exported to ${p}` : "Exported.");
-            }}
-          >
+          <HeaderBtn title="Export session to HTML" onClick={() => void exportHtml()}>
             <Download size={14} />
           </HeaderBtn>
           <HeaderBtn title="Clear queued messages" onClick={() => void control("clear_queue")}>
@@ -300,6 +322,7 @@ export function ChatView({
           <HeaderBtn title="Session options (commands, fork, clone)" onClick={() => setShowCmds((v) => !v)} active={showCmds}>
             <GitFork size={14} />
           </HeaderBtn>
+          </div>
         </div>
 
         {(showCmds || showBash) && (
@@ -383,7 +406,7 @@ export function ChatView({
 
       {/* Messages */}
       <div ref={scroll.ref} onScroll={scroll.onScroll} className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+        <div className="mx-auto max-w-3xl space-y-5 px-3 py-6 sm:px-4">
           {s.loading && s.messages.length === 0 ? (
             <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-zinc-500">
               <Loader2 size={15} className="animate-spin" /> Loading session…
@@ -424,7 +447,7 @@ export function ChatView({
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 px-4 pb-4 pt-1">
+      <div className="shrink-0 px-3 pb-3 pt-1 sm:px-4 sm:pb-4">
         <div className="mx-auto max-w-3xl">
           <Composer
             streaming={s.streaming}
@@ -442,6 +465,17 @@ export function ChatView({
       {s.dialogs[0] && <DialogModal dialog={s.dialogs[0]} onAnswer={(id, p) => void s.answerDialog(id, p)} />}
       <Toasts toasts={s.toasts} onDismiss={s.dismissToast} />
     </div>
+  );
+}
+
+function MenuRow({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="block w-full px-4 py-2.5 text-left text-[13px] text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100"
+    >
+      {label}
+    </button>
   );
 }
 

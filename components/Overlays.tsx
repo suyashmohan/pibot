@@ -110,7 +110,7 @@ export function DialogModal({
 
 export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {
   return (
-    <div className="pointer-events-none fixed bottom-5 right-5 z-[80] flex w-[340px] flex-col gap-2">
+    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-[80] flex flex-col gap-2 sm:left-auto sm:right-5 sm:w-[340px]">
       {toasts.map((t) => (
         <div
           key={t.id}

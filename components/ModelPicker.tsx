@@ -49,7 +49,7 @@ export function ModelPicker({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex max-w-[320px] items-center gap-2 rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-1.5 text-left transition hover:border-zinc-600 hover:bg-zinc-800/70"
+        className="flex w-full min-w-0 max-w-[200px] items-center gap-2 rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-1.5 text-left transition hover:border-zinc-600 hover:bg-zinc-800/70 sm:max-w-[320px]"
       >
         <Bot size={14} className="shrink-0 text-zinc-400" />
         <span className="min-w-0">
@@ -65,7 +65,7 @@ export function ModelPicker({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-[380px] overflow-hidden rounded-2xl border border-zinc-700/70 bg-zinc-900 shadow-2xl">
+        <div className="absolute left-0 top-full z-50 mt-2 w-[calc(100vw-2rem)] max-w-[380px] overflow-hidden rounded-2xl border border-zinc-700/70 bg-zinc-900 shadow-2xl">
           <div className="border-b border-zinc-800 p-2.5">
             <div className="flex items-center gap-2 rounded-lg bg-zinc-800/70 px-2.5 py-1.5">
               <Search size={13} className="text-zinc-500" />

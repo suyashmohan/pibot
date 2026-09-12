@@ -14,6 +14,9 @@ Single-user Next.js + Tailwind CSS v4 webapp that drives **`pi --mode rpc`**
 - **Project-grouped sidebar**: sessions nest under their project folder
   (auto-discovered from session working directories, plus pinnable folders
   via `POST /api/projects`). Collapse state persists in localStorage.
+- **Responsive**: mobile drawer sidebar with backdrop (< 768px), static
+  sidebar on tablet/desktop, overflow (⋯) action menu in the chat header on
+  mobile, fluid model-picker dropdown and toasts.
 - **Persistent storage**: Drizzle ORM + SQLite (`bun:sqlite`) caches
   sessions and messages locally. Pi's own JSONL session files remain the
   source of truth; the DB is reconciled from `get_messages`.
@@ -66,11 +69,14 @@ bun test
 ```
 
 Bun-native suite in `test/` (see AGENTS.md for the testing discipline):
-unit tests for utils, message helpers, emitter, env parsing and files;
-SQLite schema tests on throwaway temp DBs; protocol and manager
+unit tests for utils, message helpers, emitter, env parsing, files and
+layout; SQLite schema tests on throwaway temp DBs; protocol and manager
 integration tests against `test/helpers/fake-pi.ts`, a stub
 `pi --mode rpc` agent selected via `PI_BINARY` — so no test touches real
-LLMs, the network, or `./data/pibot.db`.
+LLMs, the network, or `./data/pibot.db`. `test/hydration.test.ts`
+SSR-renders the app shell with zero browser globals, then hydrates it in
+a mobile-simulated DOM (happy-dom) and fails on any React hydration
+warning.
 
 ## Configuration (`.env`)
 
@@ -106,6 +112,9 @@ Browser ──fetch/SSE──▶ Next.js API routes ──JSONL stdin/stdout─�
 - `app/api/projects` — pinned + discovered project folders (backed by the
   `settings` table).
 - `lib/runtime.ts` — Bun-only guard (`assertBunRuntime`).
+- `lib/layout.ts` — responsive contract (`MD_BREAKPOINT_PX`,
+  `MOBILE_QUERY`, `initialSidebarOpen`; CSS `md:` variants must stay in
+  sync — pinned by `test/layout.test.ts`).
 - `lib/emitter.ts` — tiny event emitter used for RPC + SSE fan-out.
 - `hooks/usePiSession.ts` — SSE consumer: assembles streaming text/thinking/
   tool-call drafts, holds dialogs + toasts, polls stats while streaming.

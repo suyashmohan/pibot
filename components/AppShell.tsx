@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Bot, Menu, TriangleAlert } from "lucide-react";
 import { api, type SessionListItem } from "@/lib/client-api";
+import { MOBILE_QUERY, nextSidebarUser } from "@/lib/layout";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useProjects } from "@/hooks/useProjects";
 import { ChatView } from "./ChatView";
 import { NewSessionModal } from "./NewSessionModal";
@@ -15,7 +17,16 @@ export function AppShell() {
   const { projects, refresh: refreshProjects, pin, unpin } = useProjects();
   const [defaultCwd, setDefaultCwd] = useState("");
   const [piInfo, setPiInfo] = useState<{ piVersion: string | null; piAvailable: boolean } | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Tri-state: null = follow the CSS default (drawer hidden on mobile,
+  // panel shown on desktop). Identical on server and first client render,
+  // so no hydration mismatch; explicit only after user interaction.
+  const [sidebarOpen, setSidebarOpen] = useState<boolean | null>(null);
+  const isMobile = useMediaQuery(MOBILE_QUERY);
+
+  // On mobile the sidebar is an overlay drawer — dismiss it on navigation.
+  const closeDrawerOnMobile = useCallback(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [isMobile]);
 
   const refresh = useCallback(async () => {
     try {
@@ -63,15 +74,32 @@ export function AppShell() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-950 text-zinc-100">
+    <div className="flex h-dvh overflow-hidden bg-zinc-950 text-zinc-100">
+      {sidebarOpen === true && isMobile && (
+        <div
+          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[1px] md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden
+        />
+      )}
       <Sidebar
         sessions={sessions}
         projects={projects}
         activeId={activeId}
-        collapsed={!sidebarOpen}
-        onSelect={setActiveId}
-        onNew={() => setNewModal({ cwd: defaultCwd })}
-        onNewInProject={(cwd) => setNewModal({ cwd })}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onSelect={(id) => {
+          setActiveId(id);
+          closeDrawerOnMobile();
+        }}
+        onNew={() => {
+          setNewModal({ cwd: defaultCwd });
+          closeDrawerOnMobile();
+        }}
+        onNewInProject={(cwd) => {
+          setNewModal({ cwd });
+          closeDrawerOnMobile();
+        }}
         onDelete={(id) => void remove(id)}
         onPinProject={pin}
         onUnpinProject={(p) => void unpin(p)}
@@ -80,7 +108,7 @@ export function AppShell() {
         {/* Slim top strip */}
         <div className="flex shrink-0 items-center gap-2 border-b border-zinc-800/60 bg-zinc-950 px-3 py-1.5">
           <button
-            onClick={() => setSidebarOpen((v) => !v)}
+            onClick={() => setSidebarOpen((prev) => nextSidebarUser(prev, isMobile))}
             className="rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
             title="Toggle sidebar"
           >

@@ -34,8 +34,10 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
 - `app/api/sessions/**` — session CRUD, prompt/control/model/stats/tree/
   lifecycle/bash/extension-ui/stream. `app/api/projects` — pinned +
   discovered project folders (stored in sqlite `settings` table).
-- `hooks/usePiSession.ts`, `hooks/useProjects.ts`, `components/*`
-  (project-grouped `Sidebar`, `ChatView`, `Composer`, …).
+- `hooks/usePiSession.ts`, `hooks/useProjects.ts`,
+  `hooks/useMediaQuery.ts`, `components/*`
+  (project-grouped `Sidebar` — drawer on mobile, static from `md` up —
+  `ChatView`, `Composer`, …).
 
 ## Gotchas (learned the hard way)
 
@@ -44,6 +46,12 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
   `addEventListener` per event name. Do not regress this.
 - Route `params` is a `Promise` (`await params`). All API routes:
   `runtime = "nodejs"`, `dynamic = "force-dynamic"`.
+- SSR/hydration: first client render must be byte-identical to SSR HTML.
+  Never read `window` / `localStorage` / `matchMedia` / `navigator` during
+  render or in `useState` initializers — hydrate such prefs in `useEffect`
+  (sidebar visibility is CSS-owned tri-state, collapse prefs load on
+  mount; see `lib/layout.ts`). A `typeof window` branch that changes
+  output is a hydration mismatch.
 - `better-sqlite3` is gone; `serverExternalPackages` needs no sqlite entry.
 - `data/.gitkeep` keeps the default DB dir in git; custom `DATABASE_URL`
   parents must pre-exist (fail-fast by design).
@@ -68,6 +76,10 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
   (e.g. the named-SSE-events subscription is covered by the prompt
   event-order test — stream behavior must stay observable, not just
   REST-fetchable).
+- Every bug REPORT starts with reproduction: write the failing test before
+  touching source, watch it fail, then fix. A fix without a failing-first
+  test is not done (the mobile-hydration crash is the cautionary tale —
+  the suite was green because no test rendered SSR vs client output).
 - Test isolation rules: temp `DATABASE_URL` files via
   `freshDb()`/`cleanupDbs()`, unique session ids, `destroyClient` after
   each manager test. Never touch `./data/pibot.db`, never spawn the real
@@ -75,8 +87,11 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
 - When adding features: extend the suite first and keep ALL existing tests
   passing. No breaking changes to established behavior without explicit
   user approval.
-- Done means done: `bun test` (all green) + `bunx tsc --noEmit` +
-  `bun run build` (Next type-checks, so a red suite or red types is a red
+- Done means done: `bun test` (all green, INCLUDING
+  `test/hydration.test.ts` — SSR `renderToString` with zero browser
+  globals, then `hydrateRoot` in a mobile-simulated happy-dom with seeded
+  `localStorage`, asserting zero hydration warnings) + `bunx tsc --noEmit`
+  + `bun run build` (Next type-checks, so a red suite or red types is a red
   build). Never ship on red. Never delete, skip, or weaken a failing test
   to make the suite pass — only remove tests for intentionally-removed
   behavior, and say so explicitly.
