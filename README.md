@@ -87,6 +87,7 @@ warning.
 | `PI_DEFAULT_CWD` | `process.cwd()` | Default tool sandbox for new sessions |
 | `PI_EXTRA_ARGS` | _(empty)_ | Extra args for every `pi --mode rpc` spawn |
 | `PI_RPC_TIMEOUT_MS` | `120000` | Request/response timeout |
+| `PI_ALLOWED_DEV_ORIGINS` | `192.168.68.55` | Extra origins for Next.js dev resources (LAN HMR) |
 
 ## How it works
 
