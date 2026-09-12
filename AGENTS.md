@@ -50,3 +50,33 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
 - Verify with `bunx tsc --noEmit` + `bun run build`; E2E against a dev
   server on a scratch port without touching the user's sessions in
   `data/pibot.db`.
+
+## Testing discipline (TDD — non-negotiable)
+
+- Tests are Bun-native in `test/` and run with `bun test` (sub-second,
+  no network, no real LLMs). Current coverage: pure units (`utils`,
+  message helpers, `Emitter`, `env`, `files`), sqlite schema behavior on
+  temp DBs, and protocol/integration tests (`rpc-client`, `manager`)
+  against `test/helpers/fake-pi.ts` — an executable stub `pi --mode rpc`
+  agent selected via the `PI_BINARY` env var.
+- Red-green-refactor, faithfully:
+  1. Write the failing test FIRST capturing the new behavior or reported
+     bug, and watch it fail.
+  2. Implement the minimal change that turns it green.
+  3. Refactor only while the suite stays green.
+- Every bug fix lands with a regression test that fails without the fix
+  (e.g. the named-SSE-events subscription is covered by the prompt
+  event-order test — stream behavior must stay observable, not just
+  REST-fetchable).
+- Test isolation rules: temp `DATABASE_URL` files via
+  `freshDb()`/`cleanupDbs()`, unique session ids, `destroyClient` after
+  each manager test. Never touch `./data/pibot.db`, never spawn the real
+  `pi`, never hit the network in tests.
+- When adding features: extend the suite first and keep ALL existing tests
+  passing. No breaking changes to established behavior without explicit
+  user approval.
+- Done means done: `bun test` (all green) + `bunx tsc --noEmit` +
+  `bun run build` (Next type-checks, so a red suite or red types is a red
+  build). Never ship on red. Never delete, skip, or weaken a failing test
+  to make the suite pass — only remove tests for intentionally-removed
+  behavior, and say so explicitly.

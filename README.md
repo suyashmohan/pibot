@@ -59,6 +59,19 @@ SQLite needs no separate server. The default `./data/` directory ships with
 the repo; a custom `DATABASE_URL` path must already exist (the server
 refuses to start with a clear error otherwise).
 
+## Testing (TDD)
+
+```bash
+bun test
+```
+
+Bun-native suite in `test/` (see AGENTS.md for the testing discipline):
+unit tests for utils, message helpers, emitter, env parsing and files;
+SQLite schema tests on throwaway temp DBs; protocol and manager
+integration tests against `test/helpers/fake-pi.ts`, a stub
+`pi --mode rpc` agent selected via `PI_BINARY` — so no test touches real
+LLMs, the network, or `./data/pibot.db`.
+
 ## Configuration (`.env`)
 
 | Var | Default | Purpose |
