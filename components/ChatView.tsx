@@ -212,6 +212,13 @@ export function ChatView({
   const cost = typeof stats?.cost === "number" ? stats.cost : (stats?.cost as { total?: number } | undefined)?.total;
   const costValue = typeof cost === "number" ? cost : null;
   const ctx = stats?.contextUsage as { percent?: number | null; tokens?: number | null; contextWindow?: number | null } | null | undefined;
+  // While asleep there is no live state — fall back to the model persisted on
+  // the session row so the picker still shows what it will resume with.
+  const currentModel =
+    (s.state?.model as PiModel | null | undefined) ??
+    (s.meta?.modelId
+      ? ({ id: s.meta.modelId, provider: s.meta.provider ?? undefined } as PiModel)
+      : null);
 
   const onMenuAction = (action: MobileAction) => {
     setShowMenu(false);
@@ -278,18 +285,21 @@ export function ChatView({
 
         <ModelPicker
           models={s.models}
-          current={s.state?.model as PiModel | null | undefined}
+          current={currentModel}
           thinkingLevels={s.thinkingLevels}
           currentThinking={s.state?.thinkingLevel ?? s.meta?.thinkingLevel}
+          onOpen={() => void s.loadModels()}
           onPick={(m) => void pickModel(m)}
           onThinking={(lv) => void pickThinking(lv)}
         />
 
         <div className="ml-auto flex items-center gap-1.5">
-          {/* Stat chips: inline from lg up */}
-          <div className="mr-1 hidden lg:flex">
-            <SessionStatChips tokens={tokens} cost={costValue} ctx={ctx} />
-          </div>
+          {/* Stat chips: inline from lg up — hidden until a live process reports usage */}
+          {s.stats && (
+            <div className="mr-1 hidden lg:flex">
+              <SessionStatChips tokens={tokens} cost={costValue} ctx={ctx} />
+            </div>
+          )}
 
           {/* Mobile overflow menu */}
           <div className="relative md:hidden">
@@ -338,9 +348,11 @@ export function ChatView({
         </div>
 
         {/* Stat strip below lg: token/cost/context would otherwise vanish on phones. */}
-        <div className="flex basis-full justify-start lg:hidden">
-          <SessionStatChips tokens={tokens} cost={costValue} ctx={ctx} align="left" />
-        </div>
+        {s.stats && (
+          <div className="flex basis-full justify-start lg:hidden">
+            <SessionStatChips tokens={tokens} cost={costValue} ctx={ctx} align="left" />
+          </div>
+        )}
 
         {(showCmds || showBash) && (
           <div className="basis-full">
@@ -469,11 +481,23 @@ export function ChatView({
             queueCounts={{ steering: s.queue.steering.length, followUp: s.queue.followUp.length }}
             commands={s.commands}
             sessionId={sessionId}
+            onIntent={() => void s.ensureProcess()}
             onSend={(t, imgs, mode) => void send(t, imgs, mode)}
             onAbort={() => void control("abort")}
           />
           <p className="mt-1.5 text-center text-[10.5px] text-zinc-700">
-            Pi runs tools in <span className="font-mono">{truncate(s.meta?.cwd ?? "", 48)}</span> · Enter to send · Shift+Enter for newline
+            {!s.loading && !s.hasProcess ? (
+              <>
+                pi process asleep · focus the message box to start it
+                <span className="text-zinc-800"> · </span>
+                <span className="font-mono">{truncate(s.meta?.cwd ?? "", 48)}</span>
+              </>
+            ) : (
+              <>
+                Pi runs tools in <span className="font-mono">{truncate(s.meta?.cwd ?? "", 48)}</span> · Enter to
+                send · Shift+Enter for newline
+              </>
+            )}
           </p>
         </div>
       </div>

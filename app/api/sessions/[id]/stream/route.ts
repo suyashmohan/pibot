@@ -1,4 +1,8 @@
-import { ensureClient, subscribe } from "@/lib/pi/manager";
+import { getDb } from "@/lib/db";
+import { sessions as sessionsTable } from "@/lib/db/schema";
+import { subscribe } from "@/lib/pi/manager";
+import { fail } from "@/lib/api";
+import { eq } from "drizzle-orm";
 import type { PiEvent } from "@/lib/pi/types";
 
 export const runtime = "nodejs";
@@ -8,24 +12,17 @@ type Params = { params: Promise<{ id: string }> };
 
 /**
  * SSE stream of pi RPC events for one web session.
- * Forwards agent events, tool progress, queue updates and
- * extension_ui_request dialogs to the browser.
+ *
+ * Attaching never spawns pi: the subscription registry creates a placeholder
+ * entry (events fan out once a process exists) so an old session can be
+ * viewed without starting a process. The stream also stays valid across
+ * respawns — subscribers survive idle reaping and explicit stops.
  */
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
 
-  // Make sure the pi process exists before streaming.
-  try {
-    await ensureClient(id);
-  } catch (err) {
-    return new Response(
-      `event: error\ndata: ${JSON.stringify({ message: err instanceof Error ? err.message : String(err) })}\n\n`,
-      {
-        status: 500,
-        headers: { "Content-Type": "text/event-stream" },
-      },
-    );
-  }
+  const row = (await getDb()).select().from(sessionsTable).where(eq(sessionsTable.id, id)).get();
+  if (!row) return fail("Session not found", 404);
 
   const stream = new ReadableStream({
     start(controller) {

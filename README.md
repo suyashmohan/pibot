@@ -116,13 +116,16 @@ Browser ──fetch/SSE──▶ Next.js API routes ──JSONL stdin/stdout─�
   equivalent module for that, and it runs natively under Bun.
 - `lib/pi/manager.ts` — process-lifetime singleton: spawn/respawn per web
   session (concurrent spawns deduped via an in-flight map), SSE fan-out,
-  `agent_settled` → `get_messages` → SQLite sync. Spawning is **lazy**
-  (first open/prompt, never at session creation); processes idle past
-  `PI_IDLE_TIMEOUT_MS` are reaped and `PI_MAX_PI_PROCESSES` bounds
-  concurrency via LRU eviction — streaming sessions are never touched,
-  and respawn is transparent (SSE subscribers survive).
+  `agent_settled` → `get_messages` → SQLite sync. Spawning is **lazy on user
+  intent**: viewing a session reads the SQLite cache and attaches the SSE
+  stream without starting pi (`live: false`); focusing the composer calls
+  `POST /api/sessions/[id]/start`. Processes idle past `PI_IDLE_TIMEOUT_MS`
+  are reaped and `PI_MAX_PI_PROCESSES` bounds concurrency via LRU eviction —
+  streaming sessions are never touched, and respawn is transparent (SSE
+  subscribers survive).
 - `app/api/sessions/**` — CRUD + prompt/control/model/stats/tree/lifecycle/
-  bash/extension-ui/stream endpoints.
+  bash/extension-ui/stream endpoints. Read endpoints report `live: false` and
+  never spawn; `POST /api/sessions/[id]/start` is the intent-driven spawn.
 - `app/api/projects` — pinned + discovered project folders (backed by the
   `settings` table).
 - `app/api/processes` — live pi subprocess inventory with the session/project
@@ -155,5 +158,7 @@ Browser ──fetch/SSE──▶ Next.js API routes ──JSONL stdin/stdout─�
   part of the runtime, so there is no `serverExternalPackages` entry and no
   postinstall compile step. The existing `data/pibot.db` file (plain SQLite)
   is reused as-is.
-- If the pi process dies, the UI shows a toast; opening the session respawns
-  it and re-attaches to the same pi session file.
+- If the pi process dies, the UI shows a toast; the next prompt (or focusing
+  the composer) respawns it and re-attaches to the same pi session file.
+  Idle processes close themselves after `PI_IDLE_TIMEOUT_MS` (default 15 min,
+  `0` disables) and are respawned transparently.

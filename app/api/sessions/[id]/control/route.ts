@@ -1,4 +1,4 @@
-import { ensureClient, syncMessagesFromPi } from "@/lib/pi/manager";
+import { ensureClient, getLiveClient, syncMessagesFromPi } from "@/lib/pi/manager";
 import { fail, ok, readJson, toErrorMessage } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -16,6 +16,18 @@ export async function POST(req: Request, { params }: Params) {
   try {
     const body = await readJson<Record<string, unknown>>(req);
     const action = String(body.action ?? "");
+
+    // Read-only introspection: a sleeping session must not spawn just to be
+    // asked what it could do — the UI refetches after the composer starts it.
+    const READ_ONLY = ["get_commands", "get_fork_messages", "get_last_assistant_text"];
+    if (READ_ONLY.includes(action)) {
+      const live = getLiveClient(id);
+      if (!live) return ok({ response: null, live: false });
+      const res = await live.send({ type: action });
+      if (!res.success) return fail(String(res.error ?? `${action} failed`), 500);
+      return ok({ response: res, live: true });
+    }
+
     const client = await ensureClient(id);
 
     switch (action) {
@@ -52,13 +64,10 @@ export async function POST(req: Request, { params }: Params) {
         if (!res.success) return fail(String(res.error ?? `${action} failed`), 500);
         return ok({ response: res });
       }
-      case "abort_retry":
-      case "get_commands":
-      case "get_fork_messages":
-      case "get_last_assistant_text": {
+      case "abort_retry": {
         const res = await client.send({ type: action });
         if (!res.success) return fail(String(res.error ?? `${action} failed`), 500);
-        return ok({ response: res });
+        return ok({ response: res, live: true });
       }
       case "export_html": {
         const res = await client.send({

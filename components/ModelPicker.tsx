@@ -10,6 +10,7 @@ export function ModelPicker({
   current,
   thinkingLevels,
   currentThinking,
+  onOpen,
   onPick,
   onThinking,
 }: {
@@ -17,6 +18,8 @@ export function ModelPicker({
   current: PiModel | null | undefined;
   thinkingLevels: string[];
   currentThinking?: string | null;
+  /** Called when the picker opens — models are fetched on demand, not on mount. */
+  onOpen?: () => void;
   onPick: (m: PiModel) => void;
   onThinking: (level: string) => void;
 }) {
@@ -48,7 +51,10 @@ export function ModelPicker({
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          if (!open) onOpen?.(); // model list is loaded on demand
+          setOpen((o) => !o);
+        }}
         className="flex w-full min-w-0 max-w-[200px] items-center gap-2 rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-1.5 text-left transition hover:border-zinc-600 hover:bg-zinc-800/70 sm:max-w-[320px]"
       >
         <Bot size={14} className="shrink-0 text-zinc-400" />

@@ -1,4 +1,4 @@
-import { ensureClient, readCachedMessages, syncMessagesFromPi } from "@/lib/pi/manager";
+import { getLiveClient, readCachedMessages, syncMessagesFromPi } from "@/lib/pi/manager";
 import { fail, ok, toErrorMessage } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -6,16 +6,23 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
+/**
+ * Transcript for a session. A live pi process is synced into the cache;
+ * a sleeping session is served straight from the cache without spawning
+ * (`live: false`).
+ */
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
   try {
-    try {
-      const messages = await syncMessagesFromPi(id);
-      return ok({ messages, live: true });
-    } catch (err) {
-      return ok({ messages: await readCachedMessages(id), live: false, liveError: toErrorMessage(err) });
+    if (getLiveClient(id)) {
+      return ok({ messages: await syncMessagesFromPi(id), live: true });
     }
+    return ok({ messages: await readCachedMessages(id), live: false });
   } catch (err) {
-    return fail(toErrorMessage(err), 500);
+    try {
+      return ok({ messages: await readCachedMessages(id), live: false, liveError: toErrorMessage(err) });
+    } catch (err2) {
+      return fail(toErrorMessage(err2), 500);
+    }
   }
 }

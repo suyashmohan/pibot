@@ -34,6 +34,8 @@ interface Props {
   commands?: SlashCommand[];
   /** Current session — needed to list the working directory for `@` mentions. */
   sessionId?: string;
+  /** Fired when the input gains focus — the cue to start a sleeping pi process. */
+  onIntent?: () => void;
   onSend: (text: string, images: OutgoingImage[], queueMode: "direct" | "steer" | "follow_up") => void;
   onAbort: () => void;
   disabled?: boolean;
@@ -56,6 +58,7 @@ export function Composer({
   queueCounts,
   commands = [],
   sessionId,
+  onIntent,
   onSend,
   onAbort,
   disabled,
@@ -330,6 +333,7 @@ export function Composer({
       )}
       <textarea
         ref={taRef}
+        onFocus={() => onIntent?.()}
         value={text}
         onChange={(e) => {
           setText(e.target.value);

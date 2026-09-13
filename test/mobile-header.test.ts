@@ -10,7 +10,8 @@
  *
  * 2. Token / cost / context chips were `lg`-gated, so phones and tablets saw
  *    no usage stats at all. The mobile strip must exist below `lg` while the
- *    inline desktop row keeps rendering from `lg` up.
+ *    inline desktop row keeps rendering from `lg` up — for live sessions,
+ *    since a sleeping one has no stats to show (lazy spawn).
  */
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
@@ -42,27 +43,17 @@ describe("mobile overflow menu", () => {
 });
 
 describe("chat header stat chips", () => {
-  const renderChat = () =>
-    renderToString(
+  test("a sleeping session renders no usage chips (lazy spawn)", () => {
+    const html = renderToString(
       createElement(ChatView, {
         sessionId: "session-1",
         onRenamed: () => {},
         onSessionCloned: () => {},
       }),
     );
-
-  test("chips render on mobile (own strip) and on desktop (inline row)", () => {
-    const html = renderChat();
-
-    // Two live chips: the mobile strip and the lg-gated inline row.
-    const chips = html.match(/aria-label="Token usage details"/g) ?? [];
-    expect(chips.length).toBe(2);
-
-    // Desktop row stays hidden below lg; the mobile strip is the mirror image.
-    expect(html).toMatch(/class="[^"]*hidden[^"]*lg:flex[^"]*"/);
-    const strip = /class="([^"]*lg:hidden[^"]*)"/.exec(html);
-    expect(strip).not.toBeNull();
-    expect(strip![1]).toContain("basis-full"); // wraps onto its own header line
+    // No live process ⇒ no stats ⇒ nothing to show. Chips appear on focus
+    // (see test/composer-intent.test.ts for the live case).
+    expect(html).not.toContain('aria-label="Token usage details"');
   });
 
   test("strip shows token, cost and context once stats arrive", () => {

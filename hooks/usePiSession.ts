@@ -49,6 +49,8 @@ export function usePiSession(sessionId: string | null) {
   const [draft, setDraft] = useState<StreamingDraft>(EMPTY_DRAFT);
   const [streaming, setStreaming] = useState(false);
   const [compacting, setCompacting] = useState(false);
+  /** True when a pi subprocess is attached (state/stats come from it). */
+  const [hasProcess, setHasProcess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [queue, setQueue] = useState<{ steering: string[]; followUp: string[] }>({
@@ -80,7 +82,11 @@ export function usePiSession(sessionId: string | null) {
       );
       if (r.ok && r.data) {
         setMessages(r.data.messages);
-        if (!r.data.live) setLiveError(r.data.liveError ?? "pi process unreachable — showing cache");
+        setHasProcess(Boolean(r.data.live));
+        // `live: false` alone means the session is asleep — that is normal, not
+        // an error. Only surface a message when the server reports a failure.
+        if (r.data.liveError) setLiveError(r.data.liveError);
+        else if (r.data.live) setLiveError(null);
       }
     } catch {
       /* ignore transient */
@@ -90,10 +96,11 @@ export function usePiSession(sessionId: string | null) {
   const refreshStats = useCallback(async () => {
     if (!sessionId) return;
     try {
-      const r = await api<{ state: SessionState | null; stats: SessionStats | null }>(
+      const r = await api<{ state: SessionState | null; stats: SessionStats | null; live?: boolean }>(
         `/api/sessions/${sessionId}/stats`,
       );
       if (r.ok && r.data) {
+        if (typeof r.data.live === "boolean") setHasProcess(r.data.live);
         if (r.data.state) setState(r.data.state);
         if (r.data.stats) setStats(r.data.stats);
       }
@@ -127,6 +134,7 @@ export function usePiSession(sessionId: string | null) {
         stats: SessionStats | null;
         messages: AgentMessage[];
         liveError: string | null;
+        live?: boolean;
       }>(`/api/sessions/${sessionId}`);
       if (r.ok && r.data) {
         setMeta(r.data.session);
@@ -134,6 +142,7 @@ export function usePiSession(sessionId: string | null) {
         setStats(r.data.stats);
         setMessages(r.data.messages ?? []);
         setLiveError(r.data.liveError);
+        setHasProcess(Boolean(r.data.live));
         setStreaming(Boolean(r.data.state?.isStreaming));
         setCompacting(Boolean(r.data.state?.isCompacting));
       } else {
@@ -175,16 +184,16 @@ export function usePiSession(sessionId: string | null) {
     }
   }, [sessionId]);
 
-  // Initial load.
+  // Initial load. Read-only: no pi process is started (the composer calls
+  // `ensureProcess` on focus), so models/commands are fetched after spawn.
   useEffect(() => {
     setDraft(EMPTY_DRAFT);
     setDialogs([]);
     setToolLive({});
     setBashLive({});
+    setHasProcess(false);
     void loadSession();
-    void loadModels();
-    void loadCommands();
-  }, [sessionId, loadSession, loadModels, loadCommands]);
+  }, [sessionId, loadSession]);
 
   // SSE subscription.
   useEffect(() => {
@@ -443,6 +452,44 @@ export function usePiSession(sessionId: string | null) {
     [messages, streamingAssistant],
   );
 
+  const ensuring = useRef<Promise<boolean> | null>(null);
+
+  /**
+   * Spawn (or reuse) the pi process on explicit user intent — the composer
+   * calls this when it gains focus. Deduped client-side; the server dedupes
+   * concurrent spawns too. Returns true once a process is attached.
+   */
+  const ensureProcess = useCallback((): Promise<boolean> => {
+    if (!sessionId) return Promise.resolve(false);
+    if (!ensuring.current) {
+      ensuring.current = (async () => {
+        try {
+          const r = await api<{ started: boolean; live: boolean }>(
+            `/api/sessions/${sessionId}/start`,
+            { method: "POST" },
+          );
+          if (!r.ok) {
+            if (r.error) pushToast("error", r.error);
+            return false;
+          }
+          setHasProcess(r.data?.live !== false);
+          // Everything that needs a live process is (re)loaded now.
+          void refreshStats();
+          void refreshMessages();
+          void loadCommands();
+          void loadModels();
+          return true;
+        } catch (e) {
+          pushToast("error", e instanceof Error ? e.message : String(e));
+          return false;
+        } finally {
+          ensuring.current = null;
+        }
+      })();
+    }
+    return ensuring.current;
+  }, [sessionId, refreshStats, refreshMessages, loadCommands, loadModels, pushToast]);
+
   const dismissToast = useCallback((id: string) => {
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
@@ -472,6 +519,9 @@ export function usePiSession(sessionId: string | null) {
     streaming,
     compacting,
     loading,
+    hasProcess,
+    ensureProcess,
+    loadModels,
     liveError,
     connected,
     queue,

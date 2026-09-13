@@ -24,10 +24,14 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
   split stdout on LF only, strip one trailing CR, `id` → response promise.
 - `lib/pi/manager.ts` — one `pi` process per web session, SSE fan-out,
   `ensureClient` dedupes concurrent spawns via in-flight map. Spawning is
-  lazy; idle processes are reaped (`sweepIdleClients`, 60s sweeper) and
-  concurrency is capped (`enforceProcessCap`, LRU idle eviction, busy
-  sessions spared). `entry.client` is nullable — reap keeps the entry and
-  emitter so respawn is transparent.
+  lazy on **user intent**: read paths (`GET /api/sessions/[id]`, `/messages`,
+  `/stats`, the SSE `/stream`, read-only `/control` actions) serve cache /
+  empty state with `live: false` and never spawn; the composer changing focus
+  triggers `POST /api/sessions/[id]/start`. Idle processes are reaped
+  (`sweepIdleClients`, 60s sweeper) and concurrency is capped
+  (`enforceProcessCap`, LRU idle eviction, busy sessions spared).
+  `entry.client` is nullable — reap keeps the entry and emitter so respawn
+  is transparent.
 - `lib/db/` — drizzle + `bun:sqlite`. **`getDb()` is async** — always
   `await` it. Pi's JSONL files are source of truth; sqlite is a cache
   synced from `get_messages`.
