@@ -251,7 +251,7 @@ export function Sidebar({
 
               {/* Sessions (level 2) */}
               {!isCollapsed && (
-                <div className="ml-[17px] border-l border-zinc-800/80 pl-1.5">
+                <div className="ml-[17px] mt-1.5 border-l border-zinc-800/80 pl-1.5">
                   {items.length === 0 ? (
                     <button
                       onClick={() => onNewInProject(project.path)}

@@ -70,6 +70,7 @@ export function ToolCallCard({
     >
       <button
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition hover:bg-zinc-800/40"
       >
         <span
@@ -131,6 +132,7 @@ export function ThinkingBlock({ text, streaming }: { text: string; streaming?: b
     <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.05]">
       <button
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-violet-300/90 transition hover:bg-violet-500/10"
       >
         {streaming ? (

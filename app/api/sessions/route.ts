@@ -4,7 +4,6 @@ import { getDb } from "@/lib/db";
 import { messages as messagesTable, sessions as sessionsTable } from "@/lib/db/schema";
 import { dirExists } from "@/lib/files";
 import { defaultCwd } from "@/lib/pi/env";
-import { destroyClient, ensureClient } from "@/lib/pi/manager";
 import { fail, ok, readJson, toErrorMessage } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -81,23 +80,12 @@ export async function POST(req: Request) {
       })
       .run();
 
-    // Spawn the pi process eagerly so failures (bad cwd/binary) surface now.
-    try {
-      const client = await ensureClient(id);
-      if (body.thinkingLevel) {
-        try {
-          await client.send({ type: "set_thinking_level", level: body.thinkingLevel });
-        } catch {
-          /* non-fatal */
-        }
-      }
-      const row = db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).get();
-      return ok({ session: row }, { status: 201 });
-    } catch (err) {
-      destroyClient(id);
-      db.delete(sessionsTable).where(eq(sessionsTable.id, id)).run();
-      return fail(`Failed to start pi agent: ${toErrorMessage(err)}`, 500);
-    }
+    // Lazy spawn: no pi process boots here. It starts on first real use
+    // (open/prompt/stream), so creating many sessions never fans out
+    // processes. thinkingLevel travels in the row and is passed as
+    // --thinking at spawn; bad cwd/binary surface on first open instead.
+    const row = db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).get();
+    return ok({ session: row }, { status: 201 });
   } catch (err) {
     return fail(toErrorMessage(err), 500);
   }

@@ -1,4 +1,6 @@
+import path from "node:path";
 import { assertBunRuntime } from "./runtime";
+import { sortMentionEntries, type MentionEntry } from "./file-mentions";
 
 /**
  * Bun-native filesystem helpers (no `node:fs`).
@@ -35,4 +37,46 @@ export async function hasSqlMigrations(dir: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Max entries returned for one folder (the picker paginates by folder). */
+export const MENTION_ENTRY_LIMIT = 300;
+
+/**
+ * Absolute path of `dir` inside `root`, or null when it is absolute or
+ * escapes the root (`..`). The `@` picker must never browse outside the
+ * session working directory.
+ */
+export function resolveWithinRoot(root: string, dir: string): string | null {
+  if (dir.trim().startsWith("/") || path.isAbsolute(dir.trim())) return null;
+  const absRoot = path.resolve(root);
+  const abs = path.resolve(absRoot, dir);
+  if (abs !== absRoot && !abs.startsWith(absRoot + path.sep)) return null;
+  return abs;
+}
+
+/**
+ * One directory level for the `@` mention picker: folders + files, `.git`
+ * skipped, dotfiles kept. Returns [] for missing folders or escapes so the
+ * UI can show an empty state instead of an error.
+ */
+export async function listMentionEntries(root: string, dir: string): Promise<MentionEntry[]> {
+  assertBunRuntime("fs");
+  const abs = resolveWithinRoot(root, dir);
+  if (!abs) return [];
+  const clean = dir.trim().replace(/^\/+/, "").replace(/\/+$/, "");
+  const names: string[] = [];
+  try {
+    for await (const name of new Bun.Glob("*").scan({ cwd: abs, dot: true, onlyFiles: false })) {
+      if (name !== ".git") names.push(name);
+    }
+  } catch {
+    return [];
+  }
+  const entries: MentionEntry[] = [];
+  for (const name of names) {
+    const isFile = await Bun.file(path.join(abs, name)).exists();
+    entries.push({ name, type: isFile ? "file" : "dir", path: clean ? `${clean}/${name}` : name });
+  }
+  return sortMentionEntries(entries).slice(0, MENTION_ENTRY_LIMIT);
 }

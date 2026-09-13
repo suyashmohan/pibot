@@ -23,7 +23,11 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
 - `lib/pi/rpc-client.ts` — JSONL client on `Bun.spawn`. Strict framing:
   split stdout on LF only, strip one trailing CR, `id` → response promise.
 - `lib/pi/manager.ts` — one `pi` process per web session, SSE fan-out,
-  `ensureClient` dedupes concurrent spawns via in-flight map.
+  `ensureClient` dedupes concurrent spawns via in-flight map. Spawning is
+  lazy; idle processes are reaped (`sweepIdleClients`, 60s sweeper) and
+  concurrency is capped (`enforceProcessCap`, LRU idle eviction, busy
+  sessions spared). `entry.client` is nullable — reap keeps the entry and
+  emitter so respawn is transparent.
 - `lib/db/` — drizzle + `bun:sqlite`. **`getDb()` is async** — always
   `await` it. Pi's JSONL files are source of truth; sqlite is a cache
   synced from `get_messages`.
@@ -34,6 +38,11 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
 - `app/api/sessions/**` — session CRUD, prompt/control/model/stats/tree/
   lifecycle/bash/extension-ui/stream. `app/api/projects` — pinned +
   discovered project folders (stored in sqlite `settings` table).
+  `app/api/processes` — live pi subprocess inventory (`GET`) + manual
+  stop/kill (`POST /api/processes/stop`, SIGTERM or `force`=SIGKILL);
+  `stopProcess` keeps the managed entry so the next prompt respawns
+  transparently, exactly like idle reaping. Surfaced by `ProcessPanel`
+  (opened from the AppShell strip).
 - `hooks/usePiSession.ts`, `hooks/useProjects.ts`,
   `hooks/useMediaQuery.ts`, `components/*`
   (project-grouped `Sidebar` — drawer on mobile, static from `md` up —
@@ -52,6 +61,10 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
   (sidebar visibility is CSS-owned tri-state, collapse prefs load on
   mount; see `lib/layout.ts`). A `typeof window` branch that changes
   output is a hydration mismatch.
+- `Bun.spawn` does NOT inherit post-start `process.env` mutations —
+  `rpc-client.ts` passes `env: { ...process.env }` explicitly. Never rely
+  on ambient env reaching pi children (this silently broke stub-controlled
+  tests and would hide runtime-set provider keys).
 - `better-sqlite3` is gone; `serverExternalPackages` needs no sqlite entry.
 - `data/.gitkeep` keeps the default DB dir in git; custom `DATABASE_URL`
   parents must pre-exist (fail-fast by design).

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { defaultCwd, extraArgs, piBinary, rpcTimeoutMs } from "@/lib/pi/env";
+import { defaultCwd, extraArgs, piBinary, piIdleTimeoutMs, piMaxProcesses, rpcTimeoutMs } from "@/lib/pi/env";
 
 const saved = { ...process.env };
 
 afterEach(() => {
-  for (const k of ["PI_BINARY", "PI_DEFAULT_CWD", "PIBOT_DEFAULT_CWD", "PI_EXTRA_ARGS", "PI_RPC_TIMEOUT_MS"]) {
+  for (const k of ["PI_BINARY", "PI_DEFAULT_CWD", "PIBOT_DEFAULT_CWD", "PI_EXTRA_ARGS", "PI_RPC_TIMEOUT_MS", "PI_IDLE_TIMEOUT_MS", "PI_MAX_PI_PROCESSES"]) {
     delete process.env[k];
   }
   Object.assign(process.env, saved);
@@ -45,5 +45,29 @@ describe("rpcTimeoutMs", () => {
     expect(rpcTimeoutMs()).toBe(120_000);
     process.env.PI_RPC_TIMEOUT_MS = "0";
     expect(rpcTimeoutMs()).toBe(120_000);
+  });
+});
+
+describe("piIdleTimeoutMs", () => {
+  test("defaults to 15min, explicit 0 disables, garbage falls back", () => {
+    expect(piIdleTimeoutMs()).toBe(15 * 60_000);
+    process.env.PI_IDLE_TIMEOUT_MS = "60000";
+    expect(piIdleTimeoutMs()).toBe(60_000);
+    process.env.PI_IDLE_TIMEOUT_MS = "0";
+    expect(piIdleTimeoutMs()).toBe(0);
+    process.env.PI_IDLE_TIMEOUT_MS = "garbage";
+    expect(piIdleTimeoutMs()).toBe(15 * 60_000);
+  });
+});
+
+describe("piMaxProcesses", () => {
+  test("defaults to 10, explicit 0 means unlimited, garbage falls back", () => {
+    expect(piMaxProcesses()).toBe(10);
+    process.env.PI_MAX_PI_PROCESSES = "3";
+    expect(piMaxProcesses()).toBe(3);
+    process.env.PI_MAX_PI_PROCESSES = "0";
+    expect(piMaxProcesses()).toBe(0);
+    process.env.PI_MAX_PI_PROCESSES = "garbage";
+    expect(piMaxProcesses()).toBe(10);
   });
 });

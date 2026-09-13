@@ -10,6 +10,8 @@
  * - FAKE_PI_SESSION_FILE: reported sessionFile (default /tmp/fake-pi-session.jsonl)
  * - FAKE_PI_CRLF=1: terminate output lines with \r\n (framing tests)
  * - FAKE_PI_SEED_MESSAGES: JSON array prepended to the message list
+ * - FAKE_PI_SLOW_TURN_MS: holds the turn open this long (ms) between the
+ *   streaming events and message_end/settled, so tests observe streaming
  *
  * Special command `{"type":"never_reply"}` is swallowed for timeout tests.
  */
@@ -80,8 +82,18 @@ function handle(cmd: Record<string, unknown>): void {
       const text = String(cmd.message ?? "");
       messages.push({ role: "user", content: text, timestamp: Date.now() });
       respond(id, String(type), true);
-      const reply = `echo: ${text}`;
-      send({ type: "agent_start" });
+      // Slow-turn hold is honored inside the burst (see burstAsync).
+      burst(text);
+      break;
+    }
+
+function burst(text: string): void {
+  void burstAsync(text);
+}
+
+async function burstAsync(text: string): Promise<void> {
+  const reply = `echo: ${text}`;
+  send({ type: "agent_start" });
       send({
         type: "message_start",
         message: { role: "assistant", content: [], timestamp: Date.now() },
@@ -104,6 +116,9 @@ function handle(cmd: Record<string, unknown>): void {
         usage: {},
         assistantMessageEvent: { type: "text_end", contentIndex: 0, content: reply },
       });
+      // Slow-turn mode holds the turn open so tests observe streaming state.
+      const holdMs = Number(process.env.FAKE_PI_SLOW_TURN_MS ?? "0");
+      if (Number.isFinite(holdMs) && holdMs > 0) await Bun.sleep(holdMs);
       const amsg: Msg = {
         role: "assistant",
         content: [{ type: "text", text: reply }],
@@ -115,8 +130,7 @@ function handle(cmd: Record<string, unknown>): void {
       send({ type: "turn_end", message: amsg, toolResults: [] });
       send({ type: "agent_end", messages: [amsg], willRetry: false });
       send({ type: "agent_settled" });
-      break;
-    }
+}
     case "get_available_models":
       respond(id, String(type), true, {
         models: [{ id: "fake-model", provider: "fake", name: "Fake Model" }],

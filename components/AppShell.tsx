@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bot, Menu, TriangleAlert } from "lucide-react";
+import { Bot, Menu, TriangleAlert, Activity } from "lucide-react";
 import { api, type SessionListItem } from "@/lib/client-api";
+import type { ProcessLimits, RunningProcessInfo } from "@/lib/pi/types";
 import { MOBILE_QUERY, nextSidebarUser } from "@/lib/layout";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useProjects } from "@/hooks/useProjects";
 import { ChatView } from "./ChatView";
 import { NewSessionModal } from "./NewSessionModal";
+import { ProcessPanel, SERVER_PROCESS_KEY } from "./ProcessPanel";
 import { Sidebar } from "./Sidebar";
 
 export function AppShell() {
@@ -22,6 +24,61 @@ export function AppShell() {
   // so no hydration mismatch; explicit only after user interaction.
   const [sidebarOpen, setSidebarOpen] = useState<boolean | null>(null);
   const isMobile = useMediaQuery(MOBILE_QUERY);
+
+  // Running pi processes: polled for the strip badge and the process panel.
+  const [processes, setProcesses] = useState<RunningProcessInfo[]>([]);
+  const [processLimits, setProcessLimits] = useState<ProcessLimits>({
+    maxProcesses: 0,
+    idleTimeoutMs: 0,
+  });
+  const [procPanelOpen, setProcPanelOpen] = useState(false);
+  const [procLoading, setProcLoading] = useState(false);
+  const [procBusyKey, setProcBusyKey] = useState<string | null>(null);
+
+  const loadProcesses = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setProcLoading(true);
+    try {
+      const r = await api<{ processes: RunningProcessInfo[]; limits: ProcessLimits }>(
+        "/api/processes",
+      );
+      if (r.ok && r.data) {
+        setProcesses(r.data.processes ?? []);
+        if (r.data.limits) setProcessLimits(r.data.limits);
+      }
+    } catch {
+      /* ignore transient */
+    } finally {
+      if (showSpinner) setProcLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadProcesses();
+    const t = setInterval(() => void loadProcesses(), 5000);
+    return () => clearInterval(t);
+  }, [loadProcesses]);
+
+  const stopProcess = useCallback(
+    async (sessionId: string | null, force: boolean) => {
+      const what = sessionId === null ? "the server metadata process" : "this pi process";
+      const question = force
+        ? `Force kill ${what}? In-flight output is lost.`
+        : `Stop ${what}? The next prompt respawns it.`;
+      if (!confirm(question)) return;
+      const key = sessionId ?? SERVER_PROCESS_KEY;
+      setProcBusyKey(key);
+      try {
+        await api("/api/processes/stop", {
+          method: "POST",
+          body: JSON.stringify({ id: sessionId, force }),
+        });
+        await loadProcesses();
+      } finally {
+        setProcBusyKey(null);
+      }
+    },
+    [loadProcesses],
+  );
 
   // On mobile the sidebar is an overlay drawer — dismiss it on navigation.
   const closeDrawerOnMobile = useCallback(() => {
@@ -128,6 +185,23 @@ export function AppShell() {
               <TriangleAlert size={11} /> pi binary not found — set PI_BINARY
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              setProcPanelOpen(true);
+              void loadProcesses(true);
+            }}
+            title="Running pi processes"
+            className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+          >
+            <Activity size={13} />
+            <span className="hidden sm:inline">Processes</span>
+            {processes.length > 0 && (
+              <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">
+                {processes.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {activeId ? (
@@ -163,6 +237,18 @@ export function AppShell() {
           </div>
         )}
       </div>
+
+      {procPanelOpen && (
+        <ProcessPanel
+          processes={processes}
+          limits={processLimits}
+          loading={procLoading}
+          busyKey={procBusyKey}
+          onStop={(id, force) => void stopProcess(id, force)}
+          onRefresh={() => void loadProcesses(true)}
+          onClose={() => setProcPanelOpen(false)}
+        />
+      )}
 
       {newModal && (
         <NewSessionModal

@@ -10,6 +10,7 @@ export interface SpawnOptions {
   name?: string | null;
   provider?: string | null;
   model?: string | null;
+  thinkingLevel?: string | null;
   extraCliArgs?: string[];
 }
 
@@ -50,6 +51,7 @@ export class PiRpcClient extends Emitter {
     if (opts.name) args.push("--name", opts.name);
     if (opts.provider) args.push("--provider", opts.provider);
     if (opts.model) args.push("--model", opts.model);
+    if (opts.thinkingLevel) args.push("--thinking", opts.thinkingLevel);
     if (opts.sessionFile) args.push("--session", opts.sessionFile);
     else if (opts.sessionId) args.push("--session", opts.sessionId);
 
@@ -60,6 +62,11 @@ export class PiRpcClient extends Emitter {
 
   get alive(): boolean {
     return this._alive && this.proc != null && this.proc.exitCode == null;
+  }
+
+  /** OS process id of the child, or null when not running. */
+  get pid(): number | null {
+    return this.proc?.pid ?? null;
   }
 
   get stderrTail(): string | null {
@@ -75,6 +82,10 @@ export class PiRpcClient extends Emitter {
         stdin: "pipe",
         stdout: "pipe",
         stderr: "pipe",
+        // Bun.spawn does NOT inherit post-start process.env mutations —
+        // snapshot explicitly so provider keys (and test knobs) set at
+        // runtime reach the child.
+        env: { ...process.env },
       });
     } catch (err) {
       // Bad binary or bad cwd — Bun.spawn throws synchronously.
@@ -249,7 +260,11 @@ export class PiRpcClient extends Emitter {
     this.pending.clear();
   }
 
-  dispose() {
+  /**
+   * Tear the client down. `signal` lets callers force-kill (SIGKILL) instead of
+   * asking pi to exit gracefully (SIGTERM default).
+   */
+  dispose(signal: "SIGTERM" | "SIGKILL" = "SIGTERM") {
     this.failAllPending(new Error("pi client disposed"));
     for (const r of this.readers) {
       try {
@@ -274,7 +289,7 @@ export class PiRpcClient extends Emitter {
       }
     }
     try {
-      if (this.proc && this.proc.exitCode == null) this.proc.kill("SIGTERM");
+      if (this.proc && this.proc.exitCode == null) this.proc.kill(signal);
     } catch {
       /* noop */
     }

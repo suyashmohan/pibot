@@ -41,6 +41,13 @@ export interface UserMessage {
 
 export interface AssistantMessage {
   role: "assistant";
+  /**
+   * Synthetic identity of the in-flight streamed draft (set by
+   * `streamingAssistantMessage`). Real pi messages have no id; the draft has no
+   * stable timestamp either — it's rebuilt for every streamed delta — so this
+   * is what React keys on to avoid remounting the active row per token.
+   */
+  id?: string;
   content: AssistantContent[];
   api?: string;
   provider?: string;
@@ -78,12 +85,64 @@ export type AgentMessage =
   | BashExecutionMessage
   | (Record<string, unknown> & { role: string });
 
+/** Stable id for the assistant draft that is still streaming. */
+export const STREAMING_MESSAGE_ID = "pibot:streaming-draft";
+
+/**
+ * Build the assistant message for a still-streaming turn.
+ *
+ * `timestamp` defaults to now, but the draft is re-created on every streamed
+ * delta, so the timestamp is NOT its identity: `id` is. Keying transcript rows
+ * on the timestamp would remount the active step on every token (blinking
+ * `.fade-up` animations, collapsed thinking/tool cards).
+ */
+export function streamingAssistantMessage(
+  content: AssistantContent[],
+  timestamp = Date.now(),
+): AssistantMessage {
+  return {
+    role: "assistant",
+    id: STREAMING_MESSAGE_ID,
+    content,
+    timestamp,
+    stopReason: "streaming",
+  };
+}
+
 export interface CostBreakdown {
   input?: number;
   output?: number;
   cacheRead?: number;
   cacheWrite?: number;
   total?: number;
+}
+
+/**
+ * A live pi subprocess, as surfaced by the running-processes panel.
+ * `sessionId` is null for the shared server-side metadata process, which
+ * belongs to no web session.
+ */
+export interface RunningProcessInfo {
+  sessionId: string | null;
+  kind: "session" | "server";
+  /** Web session name (or a fixed label for the metadata process). */
+  name: string;
+  /** Working directory the process was spawned in (= the project folder). */
+  cwd: string;
+  pid: number | null;
+  /** Agent working (agent_start..agent_settled) or compacting. */
+  busy: boolean;
+  startedAt: number;
+  /** Last RPC activity — what the idle reaper measures. */
+  lastActivity: number;
+}
+
+/** Process-management limits the server enforces (shown in the panel). */
+export interface ProcessLimits {
+  /** Soft cap on concurrent processes; 0 = unlimited. */
+  maxProcesses: number;
+  /** Idle reap timeout; 0 = never reaped. */
+  idleTimeoutMs: number;
 }
 
 export interface Usage {

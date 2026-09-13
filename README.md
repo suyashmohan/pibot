@@ -87,6 +87,8 @@ warning.
 | `PI_DEFAULT_CWD` | `process.cwd()` | Default tool sandbox for new sessions |
 | `PI_EXTRA_ARGS` | _(empty)_ | Extra args for every `pi --mode rpc` spawn |
 | `PI_RPC_TIMEOUT_MS` | `120000` | Request/response timeout |
+| `PI_IDLE_TIMEOUT_MS` | `900000` (15min) | Reap unused pi processes; `0` disables |
+| `PI_MAX_PI_PROCESSES` | `10` | Soft cap (LRU idle eviction); `0` = unlimited |
 | `PI_ALLOWED_DEV_ORIGINS` | `192.168.68.55` | Extra origins for Next.js dev resources (LAN HMR) |
 
 ## How it works
@@ -107,11 +109,19 @@ Browser ──fetch/SSE──▶ Next.js API routes ──JSONL stdin/stdout─�
   equivalent module for that, and it runs natively under Bun.
 - `lib/pi/manager.ts` — process-lifetime singleton: spawn/respawn per web
   session (concurrent spawns deduped via an in-flight map), SSE fan-out,
-  `agent_settled` → `get_messages` → SQLite sync.
+  `agent_settled` → `get_messages` → SQLite sync. Spawning is **lazy**
+  (first open/prompt, never at session creation); processes idle past
+  `PI_IDLE_TIMEOUT_MS` are reaped and `PI_MAX_PI_PROCESSES` bounds
+  concurrency via LRU eviction — streaming sessions are never touched,
+  and respawn is transparent (SSE subscribers survive).
 - `app/api/sessions/**` — CRUD + prompt/control/model/stats/tree/lifecycle/
   bash/extension-ui/stream endpoints.
 - `app/api/projects` — pinned + discovered project folders (backed by the
   `settings` table).
+- `app/api/processes` — live pi subprocess inventory with the session/project
+  each one serves; `POST /api/processes/stop` stops (SIGTERM) or force-kills
+  (SIGKILL) one. The AppShell strip opens `ProcessPanel` to review and stop
+  them; stopped sessions respawn on the next prompt.
 - `lib/runtime.ts` — Bun-only guard (`assertBunRuntime`).
 - `lib/layout.ts` — responsive contract (`MD_BREAKPOINT_PX`,
   `MOBILE_QUERY`, `initialSidebarOpen`; CSS `md:` variants must stay in

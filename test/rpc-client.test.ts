@@ -98,4 +98,13 @@ describe("PiRpcClient against fake-pi stub", () => {
     expect(c.alive).toBe(false);
     await expect(c.send({ type: "get_state" })).rejects.toThrow("not running");
   });
+
+  test("passes thinking level to the pi CLI", () => {
+    withFakePi();
+    const c = PiRpcClient.spawn({ cwd: "/tmp", thinkingLevel: "high" });
+    clients.push(c);
+    const i = c.spawnArgs.indexOf("--thinking");
+    expect(i).toBeGreaterThan(-1);
+    expect(c.spawnArgs[i + 1]).toBe("high");
+  });
 });

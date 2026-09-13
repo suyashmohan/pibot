@@ -1,5 +1,26 @@
 import { describe, expect, test } from "bun:test";
-import { assistantText, messagePreview, type AgentMessage } from "@/lib/pi/types";
+import {
+  STREAMING_MESSAGE_ID,
+  assistantText,
+  messagePreview,
+  streamingAssistantMessage,
+  type AgentMessage,
+} from "@/lib/pi/types";
+
+describe("streamingAssistantMessage", () => {
+  test("carries a stable synthetic id across deltas", () => {
+    // The draft is rebuilt for every streamed chunk; a fresh Date.now()
+    // timestamp must not be its identity or React remounts the active row
+    // on every token (see test/streaming-steps.test.ts).
+    const first = streamingAssistantMessage([{ type: "text", text: "he" }], 1_000);
+    const later = streamingAssistantMessage([{ type: "text", text: "hello world" }], 2_000);
+
+    expect(first.id).toBe(STREAMING_MESSAGE_ID);
+    expect(later.id).toBe(STREAMING_MESSAGE_ID);
+    expect(first.stopReason).toBe("streaming");
+    expect(later.content).toEqual([{ type: "text", text: "hello world" }]);
+  });
+});
 
 describe("assistantText", () => {
   test("user string content", () => {

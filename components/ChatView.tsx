@@ -18,12 +18,14 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/client-api";
 import { usePiSession } from "@/hooks/usePiSession";
-import { cn, formatCost, formatTokens, truncate } from "@/lib/utils";
+import { cn, truncate } from "@/lib/utils";
 import { Composer, type OutgoingImage } from "./Composer";
-import { MessageItem } from "./MessageItem";
 import { ModelPicker } from "./ModelPicker";
+import { MessageList } from "./MessageList";
+import { MobileActionsMenu, type MobileAction } from "./MobileActionsMenu";
+import { SessionStatChips } from "./TokenStats";
 import { DialogModal, Toasts } from "./Overlays";
-import type { PiModel } from "@/lib/pi/types";
+import type { PiModel, Usage } from "@/lib/pi/types";
 
 function useAutoScroll(dep: unknown) {
   const ref = useRef<HTMLDivElement>(null);
@@ -206,14 +208,44 @@ export function ChatView({
   };
 
   const stats = s.stats;
-  const tokens = stats?.tokens as { total?: number; input?: number; output?: number } | undefined;
+  const tokens = stats?.tokens as Usage | undefined;
   const cost = typeof stats?.cost === "number" ? stats.cost : (stats?.cost as { total?: number } | undefined)?.total;
+  const costValue = typeof cost === "number" ? cost : null;
   const ctx = stats?.contextUsage as { percent?: number | null; tokens?: number | null; contextWindow?: number | null } | null | undefined;
+
+  const onMenuAction = (action: MobileAction) => {
+    setShowMenu(false);
+    switch (action) {
+      case "commands":
+        setShowCmds((v) => !v);
+        break;
+      case "bash":
+        setShowBash((v) => !v);
+        break;
+      case "compact":
+        void control("compact");
+        break;
+      case "copy":
+        copyLast();
+        break;
+      case "export":
+        void exportHtml();
+        break;
+      case "clear":
+        void control("clear_queue");
+        break;
+    }
+  };
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col bg-zinc-950">
       {/* Header */}
-      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/90 px-3 py-2.5 backdrop-blur sm:px-4">
+      {/* `relative z-20` matters: the header's backdrop-blur makes it a stacking
+          context, so without a positive z-index the z-50 model/overflow menus
+          are trapped beneath .fade-up message rows (fill-mode `both` keeps
+          translateY(0), which leaves each row a z-index:0 stacking context).
+          Stay below the mobile drawer scrim (z-30). */}
+      <header className="relative z-20 flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/90 px-3 py-2.5 backdrop-blur sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
           {editingName ? (
             <input
@@ -254,25 +286,9 @@ export function ChatView({
         />
 
         <div className="ml-auto flex items-center gap-1.5">
-          {/* Stat chips */}
-          <div className="mr-1 hidden items-center gap-1.5 lg:flex">
-            <span className="rounded-md bg-zinc-900 px-2 py-1 font-mono text-[10.5px] text-zinc-400" title="Total tokens">
-              {formatTokens(tokens?.total)} tok
-            </span>
-            <span className="rounded-md bg-zinc-900 px-2 py-1 font-mono text-[10.5px] text-zinc-400" title="Cost">
-              {formatCost(cost)}
-            </span>
-            {ctx?.percent != null && (
-              <span
-                className={cn(
-                  "rounded-md px-2 py-1 font-mono text-[10.5px]",
-                  (ctx.percent ?? 0) > 80 ? "bg-amber-500/10 text-amber-300" : "bg-zinc-900 text-zinc-400",
-                )}
-                title={`Context: ${formatTokens(ctx.tokens)} / ${formatTokens(ctx.contextWindow)}`}
-              >
-                {Math.round(ctx.percent)}% ctx
-              </span>
-            )}
+          {/* Stat chips: inline from lg up */}
+          <div className="mr-1 hidden lg:flex">
+            <SessionStatChips tokens={tokens} cost={costValue} ctx={ctx} />
           </div>
 
           {/* Mobile overflow menu */}
@@ -283,14 +299,10 @@ export function ChatView({
             {showMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                <div className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-zinc-700/70 bg-zinc-900 py-1 shadow-2xl">
-                  <MenuRow label="Slash commands" onClick={() => { setShowMenu(false); setShowCmds((v) => !v); }} />
-                  <MenuRow label="Bash console" onClick={() => { setShowMenu(false); setShowBash((v) => !v); }} />
-                  <MenuRow label="Compact context" onClick={() => { setShowMenu(false); void control("compact"); }} />
-                  <MenuRow label="Copy last reply" onClick={() => { setShowMenu(false); copyLast(); }} />
-                  <MenuRow label="Export session (HTML)" onClick={() => { setShowMenu(false); void exportHtml(); }} />
-                  <MenuRow label="Clear queued messages" onClick={() => { setShowMenu(false); void control("clear_queue"); }} />
-                </div>
+                <MobileActionsMenu
+                  onSelect={onMenuAction}
+                  className="absolute right-0 top-full z-50 mt-1.5 w-52"
+                />
               </>
             )}
           </div>
@@ -323,6 +335,11 @@ export function ChatView({
             <GitFork size={14} />
           </HeaderBtn>
           </div>
+        </div>
+
+        {/* Stat strip below lg: token/cost/context would otherwise vanish on phones. */}
+        <div className="flex basis-full justify-start lg:hidden">
+          <SessionStatChips tokens={tokens} cost={costValue} ctx={ctx} align="left" />
         </div>
 
         {(showCmds || showBash) && (
@@ -422,15 +439,12 @@ export function ChatView({
               onExample={(t) => void send(t, [], "direct")}
             />
           ) : (
-            s.messages.map((m, i) => (
-              <MessageItem
-                key={`${i}-${(m as { timestamp?: number }).timestamp ?? 0}`}
-                message={m}
-                toolResults={s.toolResults}
-                toolLive={s.toolLive}
-                streaming={s.streaming && i === s.messages.length - 1}
-              />
-            ))
+            <MessageList
+              messages={s.messages}
+              toolResults={s.toolResults}
+              toolLive={s.toolLive}
+              streaming={s.streaming}
+            />
           )}
           {(s.streaming || s.compacting) && (
             <div className="flex items-center gap-2 text-[12px] text-zinc-500">
@@ -453,6 +467,8 @@ export function ChatView({
             streaming={s.streaming}
             compacting={s.compacting}
             queueCounts={{ steering: s.queue.steering.length, followUp: s.queue.followUp.length }}
+            commands={s.commands}
+            sessionId={sessionId}
             onSend={(t, imgs, mode) => void send(t, imgs, mode)}
             onAbort={() => void control("abort")}
           />
@@ -465,17 +481,6 @@ export function ChatView({
       {s.dialogs[0] && <DialogModal dialog={s.dialogs[0]} onAnswer={(id, p) => void s.answerDialog(id, p)} />}
       <Toasts toasts={s.toasts} onDismiss={s.dismissToast} />
     </div>
-  );
-}
-
-function MenuRow({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="block w-full px-4 py-2.5 text-left text-[13px] text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100"
-    >
-      {label}
-    </button>
   );
 }
 

@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/client-api";
-import type {
-  AgentMessage,
-  AssistantContent,
-  ExtensionUiRequest,
-  PiModel,
-  SessionState,
-  SessionStats,
-  ToolCallContent,
+import {
+  streamingAssistantMessage,
+  type AgentMessage,
+  type AssistantContent,
+  type ExtensionUiRequest,
+  type PiModel,
+  type SessionState,
+  type SessionStats,
+  type ToolCallContent,
 } from "@/lib/pi/types";
 
 interface SessionMeta {
@@ -434,7 +435,7 @@ export function usePiSession(sessionId: string | null) {
       }
       content.push({ type: "toolCall", id: tc.id, name: tc.name, arguments: args });
     }
-    return { role: "assistant", content, timestamp: Date.now(), stopReason: "streaming" } as AgentMessage;
+    return streamingAssistantMessage(content);
   }, [streaming, draft]);
 
   const visibleMessages = useMemo(

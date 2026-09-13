@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { cn, formatCost, formatTokens, timeAgo, truncate, uid } from "@/lib/utils";
+import { baseName, cn, formatCost, formatTokens, timeAgo, tokenBreakdown, truncate, uid } from "@/lib/utils";
 
 describe("cn", () => {
   test("merges and dedupes tailwind classes", () => {
@@ -35,6 +35,67 @@ describe("formatCost", () => {
     expect(formatCost(0)).toBe("$0.00");
     expect(formatCost(0.001)).toBe("$0.0010");
     expect(formatCost(1.5)).toBe("$1.50");
+  });
+});
+
+describe("tokenBreakdown", () => {
+  test("splits prompt volume into cache hit vs miss like pi's /usage", () => {
+    const b = tokenBreakdown({
+      input: 50_000,
+      output: 10_000,
+      cacheRead: 40_000,
+      cacheWrite: 5_000,
+      total: 105_000,
+    });
+    expect(b).not.toBeNull();
+    expect(b!.input).toBe(95_000); // full prompt volume: fresh + cached + written
+    expect(b!.cached).toBe(40_000);
+    expect(b!.uncached).toBe(55_000); // fresh + cache write
+    expect(b!.cacheWrite).toBe(5_000);
+    expect(b!.output).toBe(10_000);
+    expect(b!.total).toBe(105_000);
+    expect(b!.hitRate).toBeCloseTo(40_000 / 95_000, 6);
+  });
+
+  test("no cache activity → no hit rate", () => {
+    const b = tokenBreakdown({ input: 100, output: 20, cacheRead: 0, cacheWrite: 0, total: 120 });
+    expect(b!.input).toBe(100);
+    expect(b!.cached).toBe(0);
+    expect(b!.uncached).toBe(100);
+    expect(b!.hitRate).toBeNull();
+  });
+
+  test("writes without reads report a 0% hit rate (cache used, nothing served)", () => {
+    const b = tokenBreakdown({ input: 0, output: 0, cacheRead: 0, cacheWrite: 2_000, total: 2_000 });
+    expect(b!.hitRate).toBe(0);
+    expect(b!.uncached).toBe(2_000);
+  });
+
+  test("missing fields default to 0 and total falls back to the sum", () => {
+    const b = tokenBreakdown({ input: 10, output: 5 });
+    expect(b!.total).toBe(15);
+    expect(b!.cached).toBe(0);
+    expect(b!.hitRate).toBeNull();
+  });
+
+  test("closed-form stub stats ({ total } only) do not crash", () => {
+    const b = tokenBreakdown({ total: 10 });
+    expect(b!.input).toBe(0);
+    expect(b!.total).toBe(10);
+  });
+
+  test("absent stats → null", () => {
+    expect(tokenBreakdown(null)).toBeNull();
+    expect(tokenBreakdown(undefined)).toBeNull();
+  });
+});
+
+describe("baseName", () => {
+  test("returns the last path segment for display as a project name", () => {
+    expect(baseName("/Users/me/code/alpha")).toBe("alpha");
+    expect(baseName("/Users/me/code/alpha/")).toBe("alpha");
+    expect(baseName("relative/path")).toBe("path");
+    expect(baseName("/")).toBe("/");
   });
 });
 
