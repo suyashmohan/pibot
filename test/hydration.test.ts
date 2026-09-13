@@ -15,6 +15,31 @@ import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { Window } from "happy-dom";
 import { AppShell } from "@/components/AppShell";
+import { FileBrowser } from "@/components/FileBrowser";
+import type { BrowseEntry } from "@/lib/file-browser";
+
+const HYDRATION_ENTRIES: BrowseEntry[] = [
+  {
+    name: "pic.png",
+    path: "images/pic.png",
+    type: "file",
+    kind: "image",
+    size: 2048,
+    mtimeMs: 1_700_000_000_000,
+    language: null,
+    mime: "image/png",
+  },
+  {
+    name: "README.md",
+    path: "README.md",
+    type: "file",
+    kind: "markdown",
+    size: 32,
+    mtimeMs: 1_700_000_000_000,
+    language: "markdown",
+    mime: null,
+  },
+];
 
 (globalThis as unknown as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -35,6 +60,7 @@ const GLobalsToClean = [
   "getComputedStyle",
   "requestAnimationFrame",
   "cancelAnimationFrame",
+  "localStorage",
 ];
 
 function clearDomGlobals(): void {
@@ -82,6 +108,7 @@ function installMobileDom(seedCollapsed: string[]): Window {
     "getComputedStyle",
     "requestAnimationFrame",
     "cancelAnimationFrame",
+    "localStorage",
   ]) {
     g[k] = w[k];
   }
@@ -90,6 +117,12 @@ function installMobileDom(seedCollapsed: string[]): Window {
     "/api/sessions": { sessions: [] },
     "/api/health": { defaultCwd: "/tmp", piVersion: "0.0.0-test", piAvailable: true },
     "/api/projects": { projects: [] },
+    "/api/sessions/s1/files/browse": {
+      cwd: "/proj",
+      dir: "",
+      entries: HYDRATION_ENTRIES,
+      truncated: false,
+    },
   };
   g.fetch = (async (input: unknown) => {
     const url = String((input as { url?: unknown })?.url ?? input);
@@ -163,5 +196,45 @@ describe("AppShell hydration", () => {
 
     const hydrationErrors = errors.filter((e) => /hydrat/i.test(e));
     expect(hydrationErrors).toEqual([]);
+  }, 30_000);
+
+  test("file browser hydrates its persisted gallery view without warnings", async () => {
+    const props = {
+      sessionId: "s1",
+      cwd: "/proj",
+      mode: "docked" as const,
+      onClose: () => {},
+      onCollapse: () => {},
+      onExpand: () => {},
+    };
+    clearDomGlobals();
+    // SSR has no localStorage: the list view is the only safe initial render.
+    const ssr = renderToString(createElement(FileBrowser, props));
+    expect(ssr).toContain('aria-label="File browser"');
+
+    const win = installMobileDom([]);
+    // The persisted preference must be applied *after* mount, or the first
+    // client render (list) would diverge from SSR and hydration would warn.
+    win.localStorage.setItem("pibot.files.view", "gallery");
+    const doc = win.document as unknown as Document;
+    const container = doc.createElement("div");
+    container.innerHTML = ssr;
+    doc.body.appendChild(container);
+
+    startCapture();
+    let root: ReturnType<typeof hydrateRoot> | null = null;
+    await act(async () => {
+      root = hydrateRoot(container as unknown as Element, createElement(FileBrowser, props));
+    });
+    await act(async () => {}); // flush the browse fetch + preference effect
+    const errors = stopCapture();
+
+    expect(errors.filter((e) => /hydrat/i.test(e))).toEqual([]);
+    expect(doc.body.innerHTML).toContain("pic.png");
+    expect(doc.body.innerHTML).toContain("images%2Fpic.png"); // gallery thumbnails
+
+    await act(async () => {
+      root?.unmount();
+    });
   }, 30_000);
 });

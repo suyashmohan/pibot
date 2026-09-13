@@ -18,6 +18,9 @@ export const MD_BREAKPOINT_PX = 768;
 export const MOBILE_QUERY = "(max-width: 767px)";
 
 const COLLAPSED_KEY = "pibot.project.collapsed";
+const FILE_VIEW_KEY = "pibot.files.view";
+
+export type FileViewPreference = "list" | "gallery";
 
 /** Translate classes for the sidebar drawer/panel (branch-pure, SSR-safe). */
 export function sidebarTranslateClass(userOpen: boolean | null): string {
@@ -52,6 +55,28 @@ export function loadCollapsedPaths(): Set<string> {
 export function saveCollapsedPaths(paths: Set<string>): void {
   try {
     localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...paths]));
+  } catch {
+    /* private mode etc. */
+  }
+}
+
+/**
+ * List/gallery preference for the file browser. The panel itself always
+ * starts collapsed (never persisted); only the view mode is remembered.
+ * SSR-safe: falls back to the list view without `localStorage`.
+ */
+export function loadFileViewPreference(): FileViewPreference {
+  try {
+    if (typeof localStorage === "undefined") return "list";
+    return localStorage.getItem(FILE_VIEW_KEY) === "gallery" ? "gallery" : "list";
+  } catch {
+    return "list";
+  }
+}
+
+export function saveFileViewPreference(view: FileViewPreference): void {
+  try {
+    localStorage.setItem(FILE_VIEW_KEY, view);
   } catch {
     /* private mode etc. */
   }

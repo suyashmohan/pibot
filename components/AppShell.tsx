@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Bot, Menu, TriangleAlert, Activity } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Bot, Menu, TriangleAlert, Activity, FolderTree } from "lucide-react";
 import { api, type SessionListItem } from "@/lib/client-api";
 import type { ProcessLimits, RunningProcessInfo } from "@/lib/pi/types";
 import { MOBILE_QUERY, nextSidebarUser } from "@/lib/layout";
+import { sessionProcessStates, type SessionProcessState } from "@/lib/pi/process-state";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useProjects } from "@/hooks/useProjects";
+import { cn } from "@/lib/utils";
 import { ChatView } from "./ChatView";
+import { FileBrowser, type FilePanelMode } from "./FileBrowser";
 import { NewSessionModal } from "./NewSessionModal";
 import { ProcessPanel, SERVER_PROCESS_KEY } from "./ProcessPanel";
 import { Sidebar } from "./Sidebar";
@@ -24,6 +27,10 @@ export function AppShell() {
   // so no hydration mismatch; explicit only after user interaction.
   const [sidebarOpen, setSidebarOpen] = useState<boolean | null>(null);
   const isMobile = useMediaQuery(MOBILE_QUERY);
+
+  // Right-side file browser: always starts collapsed (never restored from
+  // storage), independent of the left sidebar's open/closed state.
+  const [filesMode, setFilesMode] = useState<FilePanelMode | "closed">("closed");
 
   // Running pi processes: polled for the strip badge and the process panel.
   const [processes, setProcesses] = useState<RunningProcessInfo[]>([]);
@@ -57,6 +64,13 @@ export function AppShell() {
     const t = setInterval(() => void loadProcesses(), 5000);
     return () => clearInterval(t);
   }, [loadProcesses]);
+
+  // Sidebar dots: which sessions have a pi process attached, and whether the
+  // agent is working in it. Derived from the same poll as the process panel.
+  const processStates = useMemo<Record<string, SessionProcessState>>(
+    () => sessionProcessStates(processes),
+    [processes],
+  );
 
   const stopProcess = useCallback(
     async (sessionId: string | null, force: boolean) => {
@@ -119,6 +133,19 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, [activeId, refresh]);
 
+  // Cmd/Ctrl+Shift+E toggles the file browser (mirrors VS Code's explorer).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key.toLowerCase() !== "e") return;
+      e.preventDefault();
+      setFilesMode((m) => (m === "closed" ? "docked" : "closed"));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const activeCwd = sessions.find((s) => s.id === activeId)?.cwd ?? "";
+
   const remove = async (id: string) => {
     if (!confirm("Delete this session? (pi's own session file is kept on disk)")) return;
     await api(`/api/sessions/${id}`, { method: "DELETE" });
@@ -144,6 +171,7 @@ export function AppShell() {
         projects={projects}
         activeId={activeId}
         open={sidebarOpen}
+        processStates={processStates}
         onClose={() => setSidebarOpen(false)}
         onSelect={(id) => {
           setActiveId(id);
@@ -187,12 +215,27 @@ export function AppShell() {
           )}
           <button
             type="button"
+            onClick={() => setFilesMode((m) => (m === "closed" ? "docked" : "closed"))}
+            disabled={!activeId}
+            title="Toggle file browser"
+            className={cn(
+              "ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] transition disabled:opacity-40",
+              filesMode === "closed"
+                ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                : "bg-zinc-800 text-zinc-100",
+            )}
+          >
+            <FolderTree size={13} />
+            <span className="hidden sm:inline">Files</span>
+          </button>
+          <button
+            type="button"
             onClick={() => {
               setProcPanelOpen(true);
               void loadProcesses(true);
             }}
             title="Running pi processes"
-            className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
           >
             <Activity size={13} />
             <span className="hidden sm:inline">Processes</span>
@@ -237,6 +280,17 @@ export function AppShell() {
           </div>
         )}
       </div>
+      {filesMode !== "closed" && activeId && activeCwd && (
+        <FileBrowser
+          key={activeId}
+          sessionId={activeId}
+          cwd={activeCwd}
+          mode={filesMode}
+          onClose={() => setFilesMode("closed")}
+          onCollapse={() => setFilesMode("docked")}
+          onExpand={() => setFilesMode("full")}
+        />
+      )}
 
       {procPanelOpen && (
         <ProcessPanel

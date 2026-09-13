@@ -15,13 +15,41 @@ import {
 } from "lucide-react";
 import { cn, timeAgo, truncate } from "@/lib/utils";
 import { loadCollapsedPaths, saveCollapsedPaths, sidebarTranslateClass } from "@/lib/layout";
+import type { SessionProcessState } from "@/lib/pi/process-state";
 import type { ProjectListItem, SessionListItem } from "@/lib/client-api";
+import { FolderPicker } from "./FolderPicker";
+
+/**
+ * Dot for a session's attached pi process. `working` pulses (same animation
+ * as the streaming cursor); `idle` is a hollow ring, meaning "attached but
+ * nothing running". No state ⇒ nothing rendered.
+ */
+function ProcessDot({ state }: { state?: SessionProcessState }) {
+  if (!state) return null;
+  const working = state === "working";
+  return (
+    <span
+      role="img"
+      aria-label={working ? "Agent working" : "Pi process attached (idle)"}
+      title={
+        working
+          ? "Agent working in this session"
+          : "pi process attached — idle, respawns instantly"
+      }
+      className={cn(
+        "h-1.5 w-1.5 shrink-0 rounded-full",
+        working ? "streaming-dot bg-emerald-400" : "border border-zinc-500",
+      )}
+    />
+  );
+}
 
 export function Sidebar({
   sessions,
   projects,
   activeId,
   open,
+  processStates = {},
   onClose,
   onSelect,
   onNew,
@@ -34,6 +62,8 @@ export function Sidebar({
   projects: ProjectListItem[];
   activeId: string | null;
   open: boolean | null;
+  /** Per-session pi process state from the AppShell inventory poll. */
+  processStates?: Record<string, SessionProcessState>;
   onClose: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -274,8 +304,16 @@ export function Sidebar({
                         >
                           <div className="flex items-start gap-1.5">
                             <div className="min-w-0 flex-1">
-                              <div className={cn("truncate text-[12.5px] font-medium", active ? "text-zinc-100" : "text-zinc-300")}>
-                                {s.name}
+                              <div className="flex items-center gap-1.5">
+                                <ProcessDot state={processStates[s.id]} />
+                                <span
+                                  className={cn(
+                                    "truncate text-[12.5px] font-medium",
+                                    active ? "text-zinc-100" : "text-zinc-300",
+                                  )}
+                                >
+                                  {s.name}
+                                </span>
                               </div>
                               {s.preview && (
                                 <div className="mt-0.5 truncate text-[11px] text-zinc-600">
@@ -315,22 +353,19 @@ export function Sidebar({
         <div className="mt-1 px-0.5">
           {adding ? (
             <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-2.5">
-              <input
-                autoFocus
+              <FolderPicker
                 value={addValue}
-                onChange={(e) => {
-                  setAddValue(e.target.value);
+                onChange={(path) => {
+                  setAddValue(path);
                   setAddError(null);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void submitAdd();
-                  if (e.key === "Escape") {
-                    setAdding(false);
-                    setAddError(null);
-                  }
+                onSubmit={() => void submitAdd()}
+                onEscape={() => {
+                  setAdding(false);
+                  setAddError(null);
                 }}
                 placeholder="/absolute/path/to/project"
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 font-mono text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+                autoFocus
               />
               {addError && <p className="mt-1.5 text-[11.5px] text-red-300">{addError}</p>}
               <div className="mt-2 flex gap-1.5">

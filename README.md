@@ -14,6 +14,12 @@ Single-user Next.js + Tailwind CSS v4 webapp that drives **`pi --mode rpc`**
 - **Project-grouped sidebar**: sessions nest under their project folder
   (auto-discovered from session working directories, plus pinnable folders
   via `POST /api/projects`). Collapse state persists in localStorage.
+- **Right-side file browser** (collapsed by default; Files button or
+  `⌘/Ctrl+Shift+E`): one folder level at a time under the session's project,
+  list or thumbnail-gallery view, image full-view lightbox, and previews for
+  text/code (highlight.js syntax highlighting) and markdown (rendered GFM or
+  highlighted source). Docked beside the chat from `md` up, full-screen
+  takeover on phones or via the expand button.
 - **Responsive**: mobile drawer sidebar with backdrop (< 768px), static
   sidebar on tablet/desktop, overflow (⋯) action menu in the chat header on
   mobile, fluid model-picker dropdown and toasts.
@@ -31,6 +37,7 @@ Single-user Next.js + Tailwind CSS v4 webapp that drives **`pi --mode rpc`**
 - Drizzle ORM + `bun:sqlite` (built into Bun — no native addon to compile;
   DB file in `./data/pibot.db`, WAL mode)
 - `lucide-react` icons, `react-markdown` + `remark-gfm` message rendering
+- `highlight.js` (core + a curated language set) for code/markdown previews
 
 ## Prerequisites
 

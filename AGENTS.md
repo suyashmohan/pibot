@@ -43,6 +43,15 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
   `stopProcess` keeps the managed entry so the next prompt respawns
   transparently, exactly like idle reaping. Surfaced by `ProcessPanel`
   (opened from the AppShell strip).
+- `app/api/sessions/[id]/files/{browse,content,raw}` — one directory level,
+  text preview, and raw bytes (thumbnails, full image view, downloads) for
+  the right-side file browser. `?dir=`/`?path=` are relative to the session
+  cwd, guarded by `resolveWithinRoot`; `raw` never serves html/js content
+  types and is CSP-sandboxed. Pure helpers in `lib/file-browser.ts`,
+  highlight.js registry in `lib/highlight.ts` (only mapped languages),
+  `hooks/useFileBrowser.ts`, `components/FileBrowser.tsx` +
+  `FileEntries.tsx` (list/gallery) + `FilePreview.tsx` (image lightbox,
+  code, markdown Rendered/Source).
 - `hooks/usePiSession.ts`, `hooks/useProjects.ts`,
   `hooks/useMediaQuery.ts`, `components/*`
   (project-grouped `Sidebar` — drawer on mobile, static from `md` up —
@@ -50,6 +59,17 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
 
 ## Gotchas (learned the hard way)
 
+- `bun run build` forces `NODE_ENV=production`. With an ambient
+  `NODE_ENV=development` Next 16.3 crashes while prerendering its internal
+  `/_global-error` page (`TypeError: null is not an object (evaluating
+  'k.H.useContext')`) — the build is red for environmental reasons, not code.
+- Dynamic filesystem paths in app routes trip Turbopack's "tracing the whole
+  project" warning. The intentional ones (`lib/files.ts`) carry
+  `path.join(/* turbopackIgnore: true */ …)`; keep it that way when adding
+  new dynamic reads.
+- Next 16 refuses a second `next dev` for the same project dir. E2E against
+  a scratch server should use `bun run start` (production build) on a scratch
+  port with a scratch `DATABASE_URL`.
 - The SSE stream emits **named** events (`event: agent_start` …).
   `EventSource.onmessage` NEVER fires for those — the hook registers
   `addEventListener` per event name. Do not regress this.

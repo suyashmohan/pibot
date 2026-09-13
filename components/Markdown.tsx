@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, Copy } from "lucide-react";
+import { shouldHighlight } from "@/lib/file-browser";
+import { escapeHtml, highlightToHtml } from "@/lib/highlight";
 
 function CodeBlock({ code, language }: { code: string; language: string }) {
   const [copied, setCopied] = useState(false);
+  const html = useMemo(
+    () => (shouldHighlight(code.length) ? highlightToHtml(code, language || null) : escapeHtml(code)),
+    [code, language],
+  );
   return (
     <div className="group/code relative">
       {language && (
@@ -27,13 +33,24 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
         {copied ? <Check size={13} /> : <Copy size={13} />}
       </button>
       <pre>
-        <code>{code}</code>
+        <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} />
       </pre>
     </div>
   );
 }
 
-export function Markdown({ text }: { text: string }) {
+/**
+ * GFM markdown with syntax-highlighted code blocks. `resolveImageUrl`
+ * (optional) rewrites relative image sources — the file browser uses it to
+ * load screenshots next to the markdown being previewed.
+ */
+export function Markdown({
+  text,
+  resolveImageUrl,
+}: {
+  text: string;
+  resolveImageUrl?: (src: string) => string;
+}) {
   if (!text) return null;
   return (
     <div className="md-body">
@@ -68,6 +85,18 @@ export function Markdown({ text }: { text: string }) {
           },
           a(props) {
             return <a {...props} target="_blank" rel="noreferrer" />;
+          },
+          img(props) {
+            const src = props.src;
+            return (
+              <img
+                {...props}
+                src={typeof src === "string" && resolveImageUrl ? resolveImageUrl(src) : src}
+                alt={props.alt ?? ""}
+                loading="lazy"
+                decoding="async"
+              />
+            );
           },
         }}
       >

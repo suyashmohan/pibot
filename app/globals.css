@@ -141,6 +141,79 @@ body {
   font-family: var(--font-mono);
   color: #e4e4e7;
 }
+.md-body img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 0.5em 0;
+}
+
+/* ── Syntax highlighting (highlight.js token classes, zinc palette) ── */
+.code-pre {
+  tab-size: 4;
+}
+.hljs {
+  color: #e4e4e7;
+  background: transparent;
+}
+.hljs-comment,
+.hljs-quote {
+  color: #6b7280;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-doctag,
+.hljs-name {
+  color: #c4b5fd;
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string {
+  color: #86efac;
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-link,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: #fbbf24;
+}
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_,
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #93c5fd;
+}
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-class .hljs-title {
+  color: #7dd3fc;
+}
+.hljs-attr,
+.hljs-property,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-tag {
+  color: #f0abfc;
+}
+.hljs-deletion {
+  color: #fca5a5;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
 
 /* Thinking shimmer while streaming */
 @keyframes pulse-soft {

@@ -1,5 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { dirExists, hasSqlMigrations } from "@/lib/files";
+import path from "node:path";
+import { $ } from "bun";
+import { dirExists, hasSqlMigrations, listSubdirectories, resolveBrowseDir } from "@/lib/files";
 import { makeTempDir, removeTempDir } from "./helpers/test-env";
 
 const dirs: string[] = [];
@@ -25,5 +27,54 @@ describe("hasSqlMigrations", () => {
     expect(await hasSqlMigrations(withSql)).toBe(true);
     expect(await hasSqlMigrations(empty)).toBe(false);
     expect(await hasSqlMigrations("/nope-missing-dir-pibot-xyz")).toBe(false);
+  });
+});
+
+describe("resolveBrowseDir (sidebar folder picker)", () => {
+  test("keeps an existing directory", async () => {
+    const root = await makeTempDir();
+    dirs.push(root);
+    const child = path.join(root, "project");
+    await $`mkdir -p ${child}`.quiet();
+    expect(await resolveBrowseDir(child, "/")).toBe(child);
+    expect(await resolveBrowseDir(root, "/")).toBe(root);
+  });
+
+  test("falls back to the parent for partial paths and files", async () => {
+    const root = await makeTempDir();
+    dirs.push(root);
+    const child = path.join(root, "project");
+    await $`mkdir -p ${child}`.quiet();
+    await $`touch ${root}/README.md`.quiet();
+    expect(await resolveBrowseDir(path.join(child, "typo"), "/")).toBe(child);
+    expect(await resolveBrowseDir(path.join(root, "README.md"), "/")).toBe(root);
+  });
+
+  test("falls back when the input is empty or unusable", async () => {
+    const home = await makeTempDir();
+    dirs.push(home);
+    expect(await resolveBrowseDir("", home)).toBe(home);
+    expect(await resolveBrowseDir("  ", home)).toBe(home);
+    expect(await resolveBrowseDir("/nope-missing-pibot-xyz", home)).toBe(home);
+    expect(await resolveBrowseDir("", "/nope-missing-pibot-xyz")).toBe("/");
+  });
+});
+
+describe("listSubdirectories (folders only)", () => {
+  test("keeps directories, skips files, sorts case-insensitively", async () => {
+    const root = await makeTempDir();
+    dirs.push(root);
+    await $`mkdir -p ${root}/zebra ${root}/Alpha ${root}/.hidden`.quiet();
+    await $`touch ${root}/file.txt ${root}/readme.md`.quiet();
+    expect(await listSubdirectories(root)).toEqual([
+      { name: ".hidden", path: `${root}/.hidden` },
+      { name: "Alpha", path: `${root}/Alpha` },
+      { name: "zebra", path: `${root}/zebra` },
+    ]);
+  });
+
+  test("missing paths and plain files yield an empty list", async () => {
+    expect(await listSubdirectories("/nope-missing-dir-pibot-xyz")).toEqual([]);
+    expect(await listSubdirectories(new URL("./files.test.ts", import.meta.url).pathname)).toEqual([]);
   });
 });
