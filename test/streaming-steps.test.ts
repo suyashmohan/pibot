@@ -14,7 +14,8 @@
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import type { createRoot } from "react-dom/client";
+import { loadReactDom } from "./helpers/dom";
 import { Window } from "happy-dom";
 import { MessageList, messageKey } from "@/components/MessageList";
 import { streamingAssistantMessage } from "@/lib/pi/types";
@@ -70,8 +71,9 @@ async function mount(doc: Document, node: ReturnType<typeof tree>) {
   const container = doc.createElement("div");
   doc.body.appendChild(container);
   let root: ReturnType<typeof createRoot> | null = null;
+  const reactDom = await loadReactDom();
   await act(async () => {
-    root = createRoot(container as unknown as Element);
+    root = reactDom.createRoot(container as unknown as Element);
     root.render(node as never);
   });
   return root as unknown as ReturnType<typeof createRoot>;

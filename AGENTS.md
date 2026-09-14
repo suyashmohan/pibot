@@ -106,6 +106,15 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
 - Verify with `bunx tsc --noEmit` + `bun run build`; E2E against a dev
   server on a scratch port without touching the user's sessions in
   `data/pibot.db`.
+- `react-dom/client` feature-detects input-event support **at import time**.
+  Importing it while no DOM exists (a static top-level import in a test file)
+  silently takes the legacy path, so `input`/`change` never reach `onChange`
+  for the rest of the process — every happy-dom typing test then fails. Bun
+  runs test files **concurrently in one process**, so this is a race: the same
+  commit passed locally and failed 15 tests on CI (run 34841998953). Always
+  load it through `test/helpers/dom.ts` → `loadReactDom()` *after* installing
+  a happy-dom window; `test/dom-bootstrap.test.ts` fails if a static runtime
+  import comes back.
 - Security regressions are silent and browser-driven. The guard is tested
   through `test/proxy.test.ts` (imports the real `proxy.ts`) and
   `test/request-guard.test.ts`; a live check is a cross-site `POST` with

@@ -12,7 +12,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { act } from "react";
 import { renderToString } from "react-dom/server";
-import { hydrateRoot } from "react-dom/client";
+import type { hydrateRoot } from "react-dom/client";
+import { loadReactDom } from "./helpers/dom";
 import { Window } from "happy-dom";
 import { AppShell } from "@/components/AppShell";
 import { FileBrowser } from "@/components/FileBrowser";
@@ -185,9 +186,10 @@ describe("AppShell hydration", () => {
 
     startCapture();
     let root: ReturnType<typeof hydrateRoot> | null = null;
+    const reactDom = await loadReactDom();
     await act(async () => {
       // happy-dom elements are structurally compatible at runtime.
-      root = hydrateRoot(container as unknown as Element, createElement(AppShell));
+      root = reactDom.hydrateRoot(container as unknown as Element, createElement(AppShell));
     });
     const errors = stopCapture();
     await act(async () => {
@@ -223,8 +225,9 @@ describe("AppShell hydration", () => {
 
     startCapture();
     let root: ReturnType<typeof hydrateRoot> | null = null;
+    const reactDom = await loadReactDom();
     await act(async () => {
-      root = hydrateRoot(container as unknown as Element, createElement(FileBrowser, props));
+      root = reactDom.hydrateRoot(container as unknown as Element, createElement(FileBrowser, props));
     });
     await act(async () => {}); // flush the browse fetch + preference effect
     const errors = stopCapture();

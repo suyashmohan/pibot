@@ -9,6 +9,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { act, createElement, useState } from "react";
 import type { Root } from "react-dom/client";
+import { loadReactDom } from "./helpers/dom";
 import { Window } from "happy-dom";
 
 const DOM_GLOBALS = [
@@ -122,7 +123,7 @@ async function mount(initialValue = "/home/user"): Promise<Harness> {
 
   const container = win.document.createElement("div");
   win.document.body.appendChild(container);
-  const { createRoot } = await import("react-dom/client");
+  const { createRoot } = await loadReactDom();
   const { FolderPicker } = await import("@/components/FolderPicker");
 
   function Wrapper() {

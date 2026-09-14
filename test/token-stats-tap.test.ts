@@ -9,7 +9,8 @@
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import type { createRoot } from "react-dom/client";
+import { loadReactDom } from "./helpers/dom";
 import { Window } from "happy-dom";
 import { TokenStats } from "@/components/TokenStats";
 
@@ -71,8 +72,9 @@ describe("TokenStats tap behaviour", () => {
     doc.body.appendChild(container);
 
     let root: ReturnType<typeof createRoot> | null = null;
+    const reactDom = await loadReactDom();
     await act(async () => {
-      root = createRoot(container as unknown as Element);
+      root = reactDom.createRoot(container as unknown as Element);
       root.render(
         createElement(TokenStats, {
           tokens: { input: 50_000, output: 10_000, cacheRead: 40_000, cacheWrite: 5_000, total: 105_000 },

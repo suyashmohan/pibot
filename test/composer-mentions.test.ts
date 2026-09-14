@@ -9,6 +9,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
+import { loadReactDom } from "./helpers/dom";
 import { Window } from "happy-dom";
 import type { MentionEntry } from "@/lib/file-mentions";
 import type { SlashCommand } from "@/lib/slash-commands";
@@ -117,7 +118,7 @@ async function mount(commands: SlashCommand[] = []): Promise<Harness> {
 
   const container = win.document.createElement("div");
   win.document.body.appendChild(container);
-  const { createRoot } = await import("react-dom/client");
+  const { createRoot } = await loadReactDom();
   const { Composer } = await import("@/components/Composer");
   const sent: string[] = [];
   let root: Root | null = null;

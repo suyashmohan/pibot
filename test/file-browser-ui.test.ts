@@ -11,7 +11,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { act, createElement } from "react";
 import { renderToString } from "react-dom/server";
-import { createRoot } from "react-dom/client";
+import type { createRoot } from "react-dom/client";
+import { loadReactDom } from "./helpers/dom";
 import { Window } from "happy-dom";
 import { AppShell } from "@/components/AppShell";
 import { FileBrowser } from "@/components/FileBrowser";
@@ -311,8 +312,9 @@ describe("file browser interactions", () => {
     doc.body.appendChild(container);
 
     let root: ReturnType<typeof createRoot> | null = null;
+    const reactDom = await loadReactDom();
     await act(async () => {
-      root = createRoot(container as unknown as Element);
+      root = reactDom.createRoot(container as unknown as Element);
       root.render(
         createElement(FileBrowser, {
           sessionId: "s1",
@@ -353,8 +355,9 @@ describe("file browser interactions", () => {
     doc.body.appendChild(container);
 
     let root: ReturnType<typeof createRoot> | null = null;
+    const reactDom = await loadReactDom();
     await act(async () => {
-      root = createRoot(container as unknown as Element);
+      root = reactDom.createRoot(container as unknown as Element);
       root.render(
         createElement(FileBrowser, {
           sessionId: "s1",
@@ -407,8 +410,9 @@ describe("file browser interactions", () => {
     doc.body.appendChild(container);
 
     let root: ReturnType<typeof createRoot> | null = null;
+    const reactDom = await loadReactDom();
     await act(async () => {
-      root = createRoot(container as unknown as Element);
+      root = reactDom.createRoot(container as unknown as Element);
       root.render(
         createElement(FileBrowser, {
           sessionId: "s1",

@@ -7,7 +7,8 @@
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import type { createRoot } from "react-dom/client";
+import { loadReactDom } from "./helpers/dom";
 import { Window } from "happy-dom";
 import { ChatView } from "@/components/ChatView";
 
@@ -114,8 +115,9 @@ async function mountChat(
   const container = doc.createElement("div");
   doc.body.appendChild(container);
   let root: ReturnType<typeof createRoot> | null = null;
+  const reactDom = await loadReactDom();
   await act(async () => {
-    root = createRoot(container as unknown as Element);
+    root = reactDom.createRoot(container as unknown as Element);
     root.render(
       createElement(ChatView, {
         sessionId: ID,
