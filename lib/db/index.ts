@@ -12,13 +12,15 @@ import { assertBunRuntime } from "../runtime";
 function resolveDbFile(): string {
   const raw = process.env.DATABASE_URL ?? "file:./data/pibot.db";
   const file = raw.startsWith("file:") ? raw.slice("file:".length) : raw;
-  return path.isAbsolute(file) ? file : path.join(process.cwd(), file);
+  // `turbopackIgnore` opts out of the build-time filesystem tracer: the DB
+  // path is runtime config, not something to bundle (see AGENTS.md).
+  return path.isAbsolute(file)
+    ? file
+    : path.join(/* turbopackIgnore: true */ process.cwd(), file);
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __pibotDbPromise: Promise<BunSQLiteDatabase<typeof schema>> | undefined;
-  // eslint-disable-next-line no-var
   var __pibotSqlite: Database | undefined;
 }
 

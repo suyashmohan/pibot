@@ -17,6 +17,8 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
 `Bun.spawn`, `Bun.Glob`, `Bun.$` — no Node compatibility. Run via
 `bun run dev` / `bun run build` / `bun run start` (scripts force
 `bun --bun` internally, so `npm run dev` works too). Never `npx next dev`.
+`dev`/`start` go through `scripts/next.ts`, which binds **127.0.0.1 by
+default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
 
 ## Layout
 
@@ -39,6 +41,15 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
   `lib/files.ts` (`dirExists`/`hasSqlMigrations` via `Bun.Glob`).
   `node:path` is fine (string math, no Bun equivalent); no other `node:`
   imports — keep it that way.
+- `proxy.ts` + `lib/request-guard.ts` — the security boundary. `proxy.ts`
+  (Next 16 renamed `middleware` → `proxy`) is a **thin adapter only**; all
+  decisions live in the pure, unit-tested `lib/request-guard.ts`: Host
+  allowlist for every method (DNS rebinding), same-origin for non-GET
+  (CSRF, incl. the `no-cors`/`text/plain` preflight bypass), optional
+  `PIBOT_TOKEN` cookie. Keep it that way — never inline security logic in
+  routes.
+- `lib/net.ts` + `scripts/next.ts` — bind resolution (`DEFAULT_BIND_HOST`
+  loopback) and the launcher that passes `-H`/`-p` to Next.
 - `app/api/sessions/**` — session CRUD, prompt/control/model/stats/tree/
   lifecycle/bash/extension-ui/stream. `app/api/projects` — pinned +
   discovered project folders (stored in sqlite `settings` table).
@@ -95,15 +106,28 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
 - Verify with `bunx tsc --noEmit` + `bun run build`; E2E against a dev
   server on a scratch port without touching the user's sessions in
   `data/pibot.db`.
+- Security regressions are silent and browser-driven. The guard is tested
+  through `test/proxy.test.ts` (imports the real `proxy.ts`) and
+  `test/request-guard.test.ts`; a live check is a cross-site `POST` with
+  `Content-Type: text/plain` + `Origin: https://evil.example`, which must
+  return 403. Do not "simplify" `readJson` to trust Content-Type or remove
+  the proxy.
+- `next lint` does not exist in Next 16 — `bun run lint` is `eslint .` with
+  the flat config in `eslint.config.mjs`. React Compiler rules
+  (`set-state-in-effect`, `preserve-manual-memoization`, `refs`) are
+  warnings on purpose; `refs` false-positives on `ref={scroll.ref}`.
 
 ## Testing discipline (TDD — non-negotiable)
 
 - Tests are Bun-native in `test/` and run with `bun test` (sub-second,
   no network, no real LLMs). Current coverage: pure units (`utils`,
-  message helpers, `Emitter`, `env`, `files`), sqlite schema behavior on
-  temp DBs, and protocol/integration tests (`rpc-client`, `manager`)
-  against `test/helpers/fake-pi.ts` — an executable stub `pi --mode rpc`
-  agent selected via the `PI_BINARY` env var.
+  message helpers, `Emitter`, `env`, `files`, `request-guard`, `net`),
+  sqlite schema behavior on temp DBs, proxy wiring/CSRF regression
+  (`proxy.test.ts`), and protocol/integration tests (`rpc-client`,
+  `manager`) against `test/helpers/fake-pi.ts` — an executable stub
+  `pi --mode rpc` agent selected via the `PI_BINARY` env var.
+  `installFakePi()` (not `useFakePi` — the name tripped
+  `react-hooks/rules-of-hooks`) is the helper.
 - Red-green-refactor, faithfully:
   1. Write the failing test FIRST capturing the new behavior or reported
      bug, and watch it fail.
@@ -128,7 +152,8 @@ JSON-RPC over stdin/stdout). **Bun-only runtime**: `bun:sqlite`,
   `test/hydration.test.ts` — SSR `renderToString` with zero browser
   globals, then `hydrateRoot` in a mobile-simulated happy-dom with seeded
   `localStorage`, asserting zero hydration warnings) + `bunx tsc --noEmit`
-  + `bun run build` (Next type-checks, so a red suite or red types is a red
-  build). Never ship on red. Never delete, skip, or weaken a failing test
+  + `bun run lint` + `bun run build` (Next type-checks, so a red suite or
+  red types is a red build). `bun run check` runs test+typecheck+lint.
+  Never ship on red. Never delete, skip, or weaken a failing test
   to make the suite pass — only remove tests for intentionally-removed
   behavior, and say so explicitly.

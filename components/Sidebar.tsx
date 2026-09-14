@@ -316,11 +316,11 @@ export function Sidebar({
                                 </span>
                               </div>
                               {s.preview && (
-                                <div className="mt-0.5 truncate text-[11px] text-zinc-600">
+                                <div className="mt-0.5 truncate text-[11px] text-zinc-500">
                                   {truncate(s.preview, 56)}
                                 </div>
                               )}
-                              <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-zinc-600">
+                              <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-zinc-500">
                                 <span>{timeAgo(s.updatedAt)}</span>
                                 {s.messageCount > 0 && <span>· {s.messageCount} msgs</span>}
                                 {s.modelId && (

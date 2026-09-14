@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Braces,
   ChevronDown,
   Copy,
   Download,
@@ -317,11 +316,10 @@ export function ChatView({
             )}
           </div>
 
-          {/* Full action row: tablet and up */}
+          {/* Full action row: tablet and up. The commands panel contains the
+              slash-command list *and* the fork/clone buttons, so it has one
+              entry point — two icons for one panel read as toolbar soup. */}
           <div className="hidden items-center gap-1.5 md:flex">
-          <HeaderBtn title="Available slash commands" onClick={() => setShowCmds((v) => !v)} active={showCmds}>
-            <Braces size={14} />
-          </HeaderBtn>
           <HeaderBtn title="Run a bash command (output goes to agent context)" onClick={() => setShowBash((v) => !v)} active={showBash}>
             <TerminalSquare size={14} />
           </HeaderBtn>
@@ -341,7 +339,7 @@ export function ChatView({
           <HeaderBtn title="Clear queued messages" onClick={() => void control("clear_queue")}>
             <Eraser size={14} />
           </HeaderBtn>
-          <HeaderBtn title="Session options (commands, fork, clone)" onClick={() => setShowCmds((v) => !v)} active={showCmds}>
+          <HeaderBtn title="Commands & session options (fork, clone)" onClick={() => setShowCmds((v) => !v)} active={showCmds}>
             <GitFork size={14} />
           </HeaderBtn>
           </div>
@@ -418,7 +416,7 @@ export function ChatView({
         )}
 
         {s.meta && (
-          <div className="flex basis-full items-center gap-1.5 text-[11px] text-zinc-600">
+          <div className="flex basis-full items-center gap-1.5 text-[11px] text-zinc-500">
             <span
               title={s.connected ? "Live updates connected" : "Connecting live updates…"}
               className={cn(

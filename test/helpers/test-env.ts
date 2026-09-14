@@ -44,7 +44,7 @@ const FAKE_PI = new URL("./fake-pi.ts", import.meta.url).pathname;
  * Route PiRpcClient at the fake-pi stub. Returns a restore function.
  * Extra env (e.g. FAKE_PI_CRLF) is applied for the duration.
  */
-export function useFakePi(extraEnv: Record<string, string> = {}): () => void {
+export function installFakePi(extraEnv: Record<string, string> = {}): () => void {
   const saved: Record<string, string | undefined> = {};
   for (const key of ["PI_BINARY", ...Object.keys(extraEnv)]) saved[key] = process.env[key];
   process.env.PI_BINARY = FAKE_PI;

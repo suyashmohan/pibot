@@ -90,4 +90,15 @@ describe("messagePreview", () => {
     } as unknown as AgentMessage;
     expect(messagePreview(m).length).toBeLessThanOrEqual(120);
   });
+  test("assistant thinking-only falls back to the reasoning text, not a placeholder", () => {
+    // The sidebar shows the last message's preview; a thinking-only assistant
+    // message must not render as "…" (nor as raw JSON blocks — the regression
+    // this fallback was added for).
+    const m = {
+      role: "assistant",
+      content: [{ type: "thinking", thinking: "Confirm the working directory first" }],
+      timestamp: 1,
+    } as unknown as AgentMessage;
+    expect(messagePreview(m)).toBe("Confirm the working directory first");
+  });
 });

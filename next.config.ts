@@ -1,18 +1,17 @@
 import type { NextConfig } from "next";
 
+// LAN device origins allowed to reach Next.js dev resources (HMR) while
+// running `bun run dev`. Empty by default — loopback always works. Set
+// PIBOT_ALLOWED_DEV_ORIGINS="host1,host2" when testing from a phone/tablet.
+const allowedDevOrigins = (process.env.PIBOT_ALLOWED_DEV_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const nextConfig: NextConfig = {
-  // Allow LAN devices (phone/tablet testing) to reach dev resources (HMR).
-  // Override with PI_ALLOWED_DEV_ORIGINS="host1,host2" as the DHCP IP changes.
-  allowedDevOrigins: process.env.PI_ALLOWED_DEV_ORIGINS
-    ? process.env.PI_ALLOWED_DEV_ORIGINS.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : ["192.168.68.55"],
+  ...(allowedDevOrigins.length ? { allowedDevOrigins } : {}),
   // No serverExternalPackages needed: sqlite comes from the Bun runtime
   // itself (`bun:sqlite`), not from a native npm addon.
-  experimental: {
-    // keep server actions available if needed later
-  },
 };
 
 export default nextConfig;

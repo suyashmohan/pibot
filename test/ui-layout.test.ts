@@ -15,11 +15,16 @@
  * 2. The active project card and the active session card underneath it
  *    rendered flush against each other (two rounded bordered boxes welded
  *    together). The session list needs a top gap.
+ *
+ * 3. The docked file browser was wide enough (`md:340px` / `lg:400px`) that the
+ *    chat column got squeezed and its header wrapped into extra bands. The
+ *    docked rail must stay narrow; the conversation owns the width.
  */
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { ChatView } from "@/components/ChatView";
+import { FileBrowser } from "@/components/FileBrowser";
 import { Sidebar } from "@/components/Sidebar";
 import type { ProjectListItem, SessionListItem } from "@/lib/client-api";
 
@@ -108,5 +113,32 @@ describe("sidebar project/session nesting", () => {
     expect(mt).not.toBeNull();
     const px = mt![1] ? Number(mt![1]) : Number(mt![2]) * 4; // Tailwind spacing unit
     expect(px).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("docked file browser width", () => {
+  /** Fixed panel width at a breakpoint, in CSS px. */
+  function widthAt(classes: string, prefix: string): number {
+    const m = new RegExp(`(?:^|\\s)${prefix}:w-\\[(\\d+)px\\]`).exec(classes);
+    if (!m) throw new Error(`no ${prefix} width in ${classes}`);
+    return Number(m[1]);
+  }
+
+  test("stays a narrow rail so the chat column keeps its width", () => {
+    const html = renderToString(
+      createElement(FileBrowser, {
+        sessionId: "s1",
+        cwd: "/tmp/project",
+        mode: "docked" as const,
+        onClose: () => {},
+        onCollapse: () => {},
+        onExpand: () => {},
+      }),
+    );
+    const aside = /<aside[^>]*class="([^"]*)"/.exec(html);
+    expect(aside).not.toBeNull();
+    const classes = aside![1];
+    expect(widthAt(classes, "md")).toBeLessThanOrEqual(320);
+    expect(widthAt(classes, "lg")).toBeLessThanOrEqual(360);
   });
 });

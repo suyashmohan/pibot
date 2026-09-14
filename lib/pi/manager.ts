@@ -25,17 +25,11 @@ interface ManagedEntry {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __pibotManaged: Map<string, ManagedEntry> | undefined;
-  // eslint-disable-next-line no-var
   var __pibotInflight: Map<string, Promise<PiRpcClient>> | undefined;
-  // eslint-disable-next-line no-var
   var __pibotGlobalClient: PiRpcClient | undefined;
-  // eslint-disable-next-line no-var
   var __pibotGlobalDetach: (() => void) | undefined;
-  // eslint-disable-next-line no-var
   var __pibotGlobalStartedAt: number | undefined;
-  // eslint-disable-next-line no-var
   var __pibotSweeperStarted: boolean | undefined;
 }
 

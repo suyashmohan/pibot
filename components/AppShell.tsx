@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, Menu, TriangleAlert, Activity, FolderTree } from "lucide-react";
+import { Bot, Menu, PanelLeft, TriangleAlert, Activity, FolderTree } from "lucide-react";
 import { api, type SessionListItem } from "@/lib/client-api";
 import type { ProcessLimits, RunningProcessInfo } from "@/lib/pi/types";
 import { MOBILE_QUERY, nextSidebarUser } from "@/lib/layout";
@@ -197,7 +197,9 @@ export function AppShell() {
             className="rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
             title="Toggle sidebar"
           >
-            <Menu size={15} />
+            {/* CSS-owned so SSR and the first client render agree. */}
+            <Menu size={15} className="md:hidden" />
+            <PanelLeft size={15} className="hidden md:block" />
           </button>
           <span className="flex items-center gap-1.5 text-[12px] font-semibold tracking-tight">
             <span className="flex h-5 w-5 items-center justify-center rounded-md bg-zinc-100 text-zinc-950">

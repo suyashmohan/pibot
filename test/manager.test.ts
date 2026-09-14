@@ -20,7 +20,7 @@ import {
   makeTempDir,
   removeTempDir,
   uniqueId,
-  useFakePi,
+  installFakePi,
 } from "./helpers/test-env";
 
 const dirs: string[] = [];
@@ -30,7 +30,7 @@ let restorePi: (() => void) | null = null;
 beforeEach(async () => {
   await freshDb();
   restorePi?.();
-  restorePi = useFakePi();
+  restorePi = installFakePi();
 });
 
 afterEach(() => {

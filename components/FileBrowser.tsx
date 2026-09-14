@@ -151,7 +151,7 @@ export function FileBrowser({
         mode === "full"
           ? "fixed inset-0 z-50"
           : // Phones: full-screen takeover under the drawer/scrim. Desktop: docked rail.
-            "fixed inset-0 z-20 md:static md:z-auto md:w-[340px] md:shrink-0 md:border-l md:border-zinc-800/80 lg:w-[400px]",
+            "fixed inset-0 z-20 md:static md:z-auto md:w-[300px] md:shrink-0 md:border-l md:border-zinc-800/80 lg:w-[340px]",
       )}
     >
       <div className="flex shrink-0 items-center gap-1 border-b border-zinc-800/80 bg-zinc-950 px-2 py-1.5">

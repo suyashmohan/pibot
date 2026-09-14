@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { PiRpcClient } from "@/lib/pi/rpc-client";
 import type { PiEvent } from "@/lib/pi/types";
-import { useFakePi } from "./helpers/test-env";
+import { installFakePi } from "./helpers/test-env";
 
 let restore: (() => void) | null = null;
 let clients: PiRpcClient[] = [];
@@ -20,7 +20,7 @@ afterEach(() => {
 
 function withFakePi(extra: Record<string, string> = {}) {
   restore?.();
-  restore = useFakePi(extra);
+  restore = installFakePi(extra);
 }
 
 describe("PiRpcClient against fake-pi stub", () => {

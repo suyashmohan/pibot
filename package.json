@@ -3,12 +3,36 @@
   "version": "0.1.0",
   "private": true,
   "description": "Single-user web GUI for the Pi coding agent (JSON-RPC mode)",
+  "license": "MIT",
+  "author": "Suyash Mohan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/suyashmohan/pibot.git"
+  },
+  "homepage": "https://github.com/suyashmohan/pibot#readme",
+  "bugs": {
+    "url": "https://github.com/suyashmohan/pibot/issues"
+  },
+  "keywords": [
+    "pi",
+    "pi-coding-agent",
+    "coding-agent",
+    "web-ui",
+    "nextjs",
+    "bun",
+    "sqlite"
+  ],
+  "engines": {
+    "bun": ">=1.2.0"
+  },
   "scripts": {
-    "dev": "bun --bun next dev",
+    "dev": "bun scripts/next.ts dev",
     "build": "NODE_ENV=production bun --bun next build",
-    "start": "bun --bun next start",
-    "lint": "next lint",
+    "start": "bun scripts/next.ts start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "check": "bun test && tsc --noEmit && eslint .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -25,8 +49,7 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "tailwind-merge": "^3.0.0",
-    "zod": "^3.24.0"
+    "tailwind-merge": "^3.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
@@ -35,6 +58,8 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "drizzle-kit": "^0.31.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
     "happy-dom": "^20.14.5",
     "postcss": "^8.5.0",
     "tailwindcss": "^4.0.0",

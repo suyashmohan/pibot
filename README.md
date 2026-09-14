@@ -3,6 +3,11 @@
 Single-user Next.js + Tailwind CSS v4 webapp that drives **`pi --mode rpc`**
 (the Pi.dev agent's JSON-RPC mode) through a modern dark chat interface.
 
+> **Security:** PiBot has no login and can run shell commands and edit files as
+your user. It binds to `127.0.0.1` by default and refuses unexpected hosts and
+cross-origin mutations, but anything that can reach its port has a shell on
+your machine. Do not expose it to the internet — see [Security](#security).
+
 - **One web session = one `pi --mode rpc` subprocess** running in the session's
   working directory (where `read` / `write` / `edit` / `bash` operate).
 - **Live streaming** via Server-Sent Events: text/thinking deltas, tool
@@ -45,18 +50,39 @@ Single-user Next.js + Tailwind CSS v4 webapp that drives **`pi --mode rpc`**
   `Bun.Glob` and `Bun.$`, none of which exist under Node)
 - The `pi` binary on `PATH` (or set `PI_BINARY`), authenticated
   (`pi /login` or provider API keys — the webapp inherits the server env).
+  Install it with:
+
+  ```bash
+  npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+  # or: curl -fsSL https://pi.dev/install.sh | sh
+  ```
+
+  PiBot talks to pi's RPC protocol and is tested against **pi 0.85.x**.
+  `GET /api/health` reports the detected version — a newer major pi may need
+  PiBot updates.
 
 ## Setup
 
 ```bash
 cp .env.example .env   # adjust DATABASE_URL / PI_BINARY / PI_DEFAULT_CWD
 bun install
-bun run dev            # http://localhost:3000
+bun run dev            # http://127.0.0.1:3000
 ```
 
 The npm scripts invoke `bun --bun ...` internally, so `npm run dev` also
 lands on the Bun runtime. If you bypass the scripts (e.g. `npx next dev`),
 the server refuses to start with `PiBot must run on the Bun runtime`.
+
+`dev`/`start` go through `scripts/next.ts`, which **binds to loopback by
+default**. To reach the UI from a phone or another machine on your LAN:
+
+```bash
+PIBOT_HOST=0.0.0.0 PIBOT_ALLOWED_HOSTS=192.168.1.50 bun run dev
+```
+
+The address you browse from must be in `PIBOT_ALLOWED_HOSTS`, otherwise every
+request is rejected with `403` (that is the DNS-rebinding guard). Read
+[Security](#security) before doing this.
 
 Production:
 
@@ -69,10 +95,13 @@ SQLite needs no separate server. The default `./data/` directory ships with
 the repo; a custom `DATABASE_URL` path must already exist (the server
 refuses to start with a clear error otherwise).
 
-## Testing (TDD)
+## Checks
 
 ```bash
-bun test
+bun test              # unit + protocol + hydration suite
+bun run typecheck     # tsc --noEmit
+bun run lint          # eslint (Next's flat config)
+bun run check         # all three
 ```
 
 Bun-native suite in `test/` (see AGENTS.md for the testing discipline):
@@ -96,7 +125,36 @@ warning.
 | `PI_RPC_TIMEOUT_MS` | `120000` | Request/response timeout |
 | `PI_IDLE_TIMEOUT_MS` | `900000` (15min) | Reap unused pi processes; `0` disables |
 | `PI_MAX_PI_PROCESSES` | `10` | Soft cap (LRU idle eviction); `0` = unlimited |
-| `PI_ALLOWED_DEV_ORIGINS` | `192.168.68.55` | Extra origins for Next.js dev resources (LAN HMR) |
+| `PIBOT_HOST` | `127.0.0.1` | Bind address; `0.0.0.0` for LAN (see Security) |
+| `PIBOT_PORT` | `3000` (or `PORT`) | HTTP port |
+| `PIBOT_ALLOWED_HOSTS` | _(empty)_ | Extra `Host` names accepted (LAN IP, Tailscale name) |
+| `PIBOT_TOKEN` | _(unset)_ | Shared secret required on every request when set |
+| `PIBOT_ALLOWED_DEV_ORIGINS` | _(empty)_ | Extra origins for Next.js dev resources (LAN HMR) |
+
+## Security
+
+PiBot is deliberately login-free for single-user, local use, and that shapes
+the whole security model:
+
+- **It binds to loopback by default.** `dev`/`start` pass `-H 127.0.0.1`;
+  `PIBOT_HOST=0.0.0.0` is an explicit opt-in for LAN access.
+- **Host allowlist.** `proxy.ts` rejects any request whose `Host` is not
+  `localhost`/`127.0.0.1`/`[::1]` or listed in `PIBOT_ALLOWED_HOSTS`, which
+  stops DNS rebinding (a malicious domain resolving to 127.0.0.1).
+- **Same-origin mutations.** Every non-GET request must come from PiBot's own
+  origin. Browsers attach `Origin`/`Sec-Fetch-Site` to cross-site requests, so
+  a web page you visit cannot POST to the API — not even with the
+  `no-cors` + `text/plain` trick that skips CORS preflight.
+- **Optional shared token.** Setting `PIBOT_TOKEN` requires a cookie minted by
+  opening `http://<host>:<port>/?token=YOUR_TOKEN` once. Use it when binding
+  beyond loopback or fronting PiBot with a tunnel.
+
+The logic lives in `lib/request-guard.ts` (pure and unit-tested); `proxy.ts`
+is only the Next.js adapter.
+
+**Never expose PiBot directly to the internet.** If you need remote access,
+use a VPN/tunnel (Tailscale, WireGuard, SSH port-forward) or an authenticated
+reverse proxy, plus `PIBOT_TOKEN`.
 
 ## How it works
 
@@ -133,6 +191,11 @@ Browser ──fetch/SSE──▶ Next.js API routes ──JSONL stdin/stdout─�
   (SIGKILL) one. The AppShell strip opens `ProcessPanel` to review and stop
   them; stopped sessions respawn on the next prompt.
 - `lib/runtime.ts` — Bun-only guard (`assertBunRuntime`).
+- `lib/request-guard.ts` + `proxy.ts` — the security boundary: Host allowlist,
+  same-origin mutations, optional `PIBOT_TOKEN`. `proxy.ts` (Next 16's renamed
+  middleware) is only an adapter so the decision logic stays unit-testable.
+- `lib/net.ts` + `scripts/next.ts` — bind resolution (loopback by default)
+  and the `dev`/`start` launcher that enforces it.
 - `lib/layout.ts` — responsive contract (`MD_BREAKPOINT_PX`,
   `MOBILE_QUERY`, `initialSidebarOpen`; CSS `md:` variants must stay in
   sync — pinned by `test/layout.test.ts`).
@@ -162,3 +225,7 @@ Browser ──fetch/SSE──▶ Next.js API routes ──JSONL stdin/stdout─�
   the composer) respawns it and re-attaches to the same pi session file.
   Idle processes close themselves after `PI_IDLE_TIMEOUT_MS` (default 15 min,
   `0` disables) and are respawned transparently.
+
+## License
+
+[MIT](LICENSE) © Suyash Mohan

@@ -89,7 +89,9 @@ export async function POST(req: Request) {
     const raw = body.path?.trim() ?? "";
     if (!raw) return fail("Folder path is required", 400);
     if (!path.isAbsolute(raw)) return fail("Folder path must be absolute", 400);
-    const resolved = path.resolve(raw);
+    // `turbopackIgnore` opts out of the build-time filesystem tracer: this is
+    // a user-chosen folder, not something to bundle (see AGENTS.md).
+    const resolved = path.resolve(/* turbopackIgnore: true */ raw);
     if (!(await dirExists(resolved))) {
       return fail(`Folder does not exist (or is not a directory): ${resolved}`, 400);
     }
@@ -108,7 +110,9 @@ export async function DELETE(req: Request) {
     const body = await readJson<{ path?: string }>(req);
     const raw = body.path?.trim() ?? "";
     if (!raw) return fail("Folder path is required", 400);
-    await setPinned((await getPinned()).filter((p) => p !== path.resolve(raw)));
+    await setPinned(
+      (await getPinned()).filter((p) => p !== path.resolve(/* turbopackIgnore: true */ raw)),
+    );
     return ok({ projects: await listing() });
   } catch (err) {
     return fail(toErrorMessage(err), 500);

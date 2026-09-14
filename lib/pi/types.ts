@@ -276,6 +276,15 @@ export function messagePreview(m: AgentMessage, max = 120): string {
     ) as ToolCallContent[];
     if (calls.length)
       return `Used ${calls.map((c) => c.name).join(", ")}`;
+    // Thinking-only messages are common while streaming; showing the reasoning
+    // text beats a "…" placeholder (and beats the raw block JSON the sidebar
+    // used to render).
+    const thinking = ((m as AssistantMessage).content ?? [])
+      .filter((b) => b.type === "thinking")
+      .map((b) => (b as ThinkingContent).thinking)
+      .join(" ")
+      .trim();
+    if (thinking) return thinking.slice(0, max);
     return "…";
   }
   const t = assistantText(m).trim().replace(/\s+/g, " ");

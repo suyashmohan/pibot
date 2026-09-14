@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { messages as messagesTable, sessions as sessionsTable } from "@/lib/db/schema";
 import { dirExists } from "@/lib/files";
 import { defaultCwd } from "@/lib/pi/env";
+import { messagePreview, type AgentMessage } from "@/lib/pi/types";
 import { fail, ok, readJson, toErrorMessage } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -27,12 +28,11 @@ export async function GET() {
         const last = msgs[msgs.length - 1];
         if (last) {
           try {
-            const raw = JSON.parse(last.rawJson) as { role?: string; content?: unknown };
-            const c = raw.content;
-            preview =
-              typeof c === "string"
-                ? c.slice(0, 140)
-                : JSON.stringify(c ?? "").slice(0, 140);
+            // Unwrap the pi content blocks into human text. Serializing the
+            // raw blocks here is what made every sidebar card read
+            // `[{"type":"thinking","thinking":"…` (see messagePreview).
+            const text = messagePreview(JSON.parse(last.rawJson) as AgentMessage, 140).trim();
+            preview = text && text !== "…" ? text : null;
           } catch {
             preview = null;
           }
