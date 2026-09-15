@@ -6,7 +6,9 @@ Single-user Next.js + Tailwind CSS v4 webapp that drives **`pi --mode rpc`**
 > **Security:** PiBot has no login and can run shell commands and edit files as
 your user. It binds to `127.0.0.1` by default and refuses unexpected hosts and
 cross-origin mutations, but anything that can reach its port has a shell on
-your machine. Do not expose it to the internet — see [Security](#security).
+your machine. Run it in [Docker](#docker) so that shell lives in a container
+instead of your account. Do not expose it to the internet — see
+[Security](#security).
 
 - **One web session = one `pi --mode rpc` subprocess** running in the session's
   working directory (where `read` / `write` / `edit` / `bash` operate).
@@ -32,6 +34,90 @@ your machine. Do not expose it to the internet — see [Security](#security).
   sessions and messages locally. Pi's own JSONL session files remain the
   source of truth; the DB is reconciled from `get_messages`.
 
+## Docker
+
+**This is the recommended way to run PiBot.** `pi` has full access to
+everything it can reach — no permission prompts, no built-in sandbox — and
+PiBot hands it a web UI. The container confines that access to the image plus
+the folders you mount, so the agent can work freely on your projects without
+holding the keys to the rest of the machine.
+
+One image runs everything — Bun, Node, the built web app and the `pi` agent:
+
+```bash
+cp -n .env.example .env   # only if you don't have one; add provider keys
+docker compose up --build
+# → http://127.0.0.1:3000
+```
+
+The compose file mounts:
+
+| Mount | Container path | Purpose |
+| ----- | -------------- | ------- |
+| `PIBOT_WORKSPACE` (default `./workspace`) | `/workspace` | Project tree the agent works in; default cwd for new sessions (`PI_DEFAULT_CWD`) |
+| volume `pibot-data` | `/app/data` | SQLite cache (`DATABASE_URL=file:/app/data/pibot.db`) |
+| volume `pibot-agent` | `/root/.pi` | pi auth, settings, skills and session JSONL files |
+
+Provider keys and other secrets belong in `.env` (gitignored), never in the
+compose file — `docker-compose.yml` only declares which *paths* and *ports*
+the container uses.
+
+Give the agent model credentials in one of three ways:
+
+- **Put provider keys in `.env`** (repo root, gitignored). Compose loads the
+  whole file into the container via `env_file`, so keys never appear in
+  `docker-compose.yml`:
+
+  ```bash
+  cp -n .env.example .env    # -n: keep your existing .env
+  echo 'DEEPSEEK_API_KEY=sk-...' >> .env
+  docker compose up -d
+  ```
+
+  Any provider variable from pi's `docs/providers.md` works the same way
+  (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, …).
+- **Log in inside the container**: `docker compose exec pibot pi /login`
+- **Reuse the host pi config** by swapping the `pibot-agent` volume for
+  `${HOME}/.pi:/root/.pi`. The container then sees your host auth and sessions
+  and writes new session files there — convenient, but shared state.
+
+Without compose:
+
+```bash
+docker build -t pibot .
+docker run --rm -p 127.0.0.1:3000:3000 \
+  -v "$HOME/projects:/workspace" \
+  -v pibot-data:/app/data \
+  -v pibot-agent:/root/.pi \
+  pibot
+```
+
+Notes:
+
+- `.env` is also where `PIBOT_WORKSPACE`, `PIBOT_PORT`, `PIBOT_TOKEN` and
+  `PIBOT_ALLOWED_HOSTS` can live; compose reads it for both container env and
+  YAML substitution. Container paths (`DATABASE_URL`, `PI_BINARY`,
+  `PI_DEFAULT_CWD`) are pinned in compose and override `.env`, so a `.env`
+  written for a bare-metal run can't break the container.
+- The published port is loopback-only, exactly like the bare-metal default;
+  set `PIBOT_PORT` to publish on a different host port (e.g. `PIBOT_PORT=3210
+  docker compose up`). For LAN access replace `127.0.0.1` with `0.0.0.0` in
+  the compose `ports:` line **and** set `PIBOT_ALLOWED_HOSTS` (plus
+  `PIBOT_TOKEN`) — the [Security](#security) rules are unchanged inside a
+  container.
+- The image pins the `pi` version (`PI_VERSION`, default `0.85.1`); rebuild
+  with `--build-arg PI_VERSION=x.y.z` to move. `GET /api/health` reports the
+  version actually running.
+- Container processes run as `root`, so on Linux files the agent creates in a
+  bind-mounted workspace are root-owned. If that matters, set
+  `user: "${UID}:${GID}"` and point `PI_CODING_AGENT_DIR` at a writable
+  volume.
+- The container only confines what is *inside* it: anything you bind-mount
+  (the default workspace, or a host `~/.pi`) is fair game for the agent. Never
+  mount `$HOME`, your SSH keys, or the Docker socket.
+- `tini` is the entrypoint (PID 1) to reap `pi` subprocesses and forward
+  `SIGTERM` — don't add `--init` / `init: true` on top of it.
+
 ## Stack
 
 - **Bun only** — the server must run on the Bun runtime (`bun --bun`).
@@ -45,6 +131,9 @@ your machine. Do not expose it to the internet — see [Security](#security).
 - `highlight.js` (core + a curated language set) for code/markdown previews
 
 ## Prerequisites
+
+> Running the [container](#docker) (recommended)? Skip this section — the
+> image bundles Bun and `pi` version-pinned already.
 
 - Bun 1.2+ (**required** — the app uses `bun:sqlite`, `Bun.spawn`,
   `Bun.Glob` and `Bun.$`, none of which exist under Node)
@@ -62,6 +151,8 @@ your machine. Do not expose it to the internet — see [Security](#security).
   PiBot updates.
 
 ## Setup
+
+Running from source (PiBot development, or when you can't use Docker).
 
 ```bash
 cp .env.example .env   # adjust DATABASE_URL / PI_BINARY / PI_DEFAULT_CWD

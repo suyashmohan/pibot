@@ -50,6 +50,15 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
   routes.
 - `lib/net.ts` + `scripts/next.ts` — bind resolution (`DEFAULT_BIND_HOST`
   loopback) and the launcher that passes `-H`/`-p` to Next.
+- `Dockerfile` + `docker-compose.yml` + `.dockerignore` — single-image
+  deployment. Base: `oven/bun:1-debian` — Bun is PiBot's runtime, and Node
+  (for the `pi` CLI) is copied in from `node:24-trixie-slim`; both are the
+  same Debian release, so glibc matches. Stages run `bun install`,
+  `bun run build`, then install `pi` globally with npm. Runner: prod-only
+  `node_modules`, `.next` minus Turbopack caches, plus `scripts/` and
+  `lib/net.ts` (the launcher's only import). `PIBOT_HOST=0.0.0.0` inside;
+  compose publishes `127.0.0.1` only (`PIBOT_PORT` overrides the host port).
+  Volumes: `/app/data` (sqlite) and `/root/.pi` (pi auth/sessions).
 - `app/api/sessions/**` — session CRUD, prompt/control/model/stats/tree/
   lifecycle/bash/extension-ui/stream. `app/api/projects` — pinned +
   discovered project folders (stored in sqlite `settings` table).
@@ -73,6 +82,16 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
   `ChatView`, `Composer`, …).
 
 ## Gotchas (learned the hard way)
+
+- Docker: `.dockerignore` must keep `.env` and `data/` out of the image
+  (secrets / user state). Compose takes secrets from `.env` via `env_file`
+  (`required: false`) — never add provider API keys to `docker-compose.yml`;
+  container paths (`DATABASE_URL`, `PI_BINARY`, `PI_DEFAULT_CWD`) are pinned
+  in `environment:`, which wins over `env_file`. `tini` is the image
+  ENTRYPOINT and must stay PID 1 for `pi` subprocess reaping and `SIGTERM`
+  forwarding — never also pass `--init`/`init: true`. Next-side changes only
+  reach the container via `docker compose up --build`: the runner carries
+  build output, not sources.
 
 - `bun run build` forces `NODE_ENV=production`. With an ambient
   `NODE_ENV=development` Next 16.3 crashes while prerendering its internal

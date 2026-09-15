@@ -1,0 +1,32 @@
+# Rebuilt inside the image
+node_modules
+.next
+out
+*.tsbuildinfo
+
+# Local state and secrets (never bake the user's DB or .env into an image)
+data
+.env
+.env.*
+!.env.example
+
+# Not needed for the production build
+test
+drizzle
+.github
+# Default compose bind-mount lives inside the repo; never bake it in
+workspace
+coverage
+*.md
+Dockerfile*
+docker-compose.yml
+compose.yaml
+.dockerignore
+
+# Noise
+.git
+.gitignore
+.DS_Store
+.idea
+.vscode
+*.log
