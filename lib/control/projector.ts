@@ -89,7 +89,16 @@ export function pushPiEvent(p: Projector, ev: WireEvent): SessionEvent[] {
     case "agent_settled":
       view.streaming = false;
       view.draft = emptyDraft();
-      return [{ type: "turn.settled" }];
+      // The manager annotates the settle with the turn's measured wall time;
+      // pass it through so live tabs show exactly what was persisted.
+      return [
+        {
+          type: "turn.settled",
+          ...(typeof ev.durationMs === "number" && Number.isFinite(ev.durationMs)
+            ? { durationMs: ev.durationMs }
+            : {}),
+        },
+      ];
 
     case "agent_end":
     case "turn_end":

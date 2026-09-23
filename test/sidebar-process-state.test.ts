@@ -66,6 +66,7 @@ function session(id: string, name: string): SessionListItem {
     piSessionFile: null,
     createdAt: now,
     updatedAt: now,
+    lastTurnMs: null,
     preview: null,
     messageCount: 0,
   };

@@ -1,16 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, Menu, PanelLeft, TriangleAlert, Activity, FolderTree } from "lucide-react";
+import { Bot, Menu, PanelLeft, TriangleAlert, Activity, FolderTree, GitBranch } from "lucide-react";
 import { pibot } from "@/lib/client";
 import type { ProcessLimits, RunningProcessInfo, SessionListItem } from "@/lib/control/types";
-import { MOBILE_QUERY, nextSidebarUser } from "@/lib/layout";
+import { MOBILE_QUERY, nextRightPanel, nextSidebarUser, type RightPanelKind } from "@/lib/layout";
 import { sessionProcessStates, type SessionProcessState } from "@/lib/control/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useProjects } from "@/hooks/useProjects";
 import { cn } from "@/lib/utils";
 import { ChatView } from "./ChatView";
 import { FileBrowser, type FilePanelMode } from "./FileBrowser";
+import { GitPanel } from "./GitPanel";
 import { NewSessionModal } from "./NewSessionModal";
 import { ProcessPanel, SERVER_PROCESS_KEY } from "./ProcessPanel";
 import { Sidebar } from "./Sidebar";
@@ -38,9 +39,19 @@ function AppShellContent() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean | null>(null);
   const isMobile = useMediaQuery(MOBILE_QUERY);
 
-  // Right-side file browser: always starts collapsed (never restored from
-  // storage), independent of the left sidebar's open/closed state.
-  const [filesMode, setFilesMode] = useState<FilePanelMode | "closed">("closed");
+  // Right-side rails: Files and Git share one slot, always start collapsed
+  // (never restored from storage) and only one can be open at a time.
+  const [rightPanel, setRightPanel] = useState<RightPanelKind>("closed");
+  const [panelMode, setPanelMode] = useState<FilePanelMode>("docked");
+
+  const toggleRightPanel = useCallback((which: "files" | "git") => {
+    setRightPanel((current) => nextRightPanel(current, which));
+  }, []);
+
+  const closeRightPanel = useCallback(() => {
+    setRightPanel("closed");
+    setPanelMode("docked");
+  }, []);
 
   // Running pi processes: polled for the strip badge and the process panel.
   const [processes, setProcesses] = useState<RunningProcessInfo[]>([]);
@@ -133,16 +144,19 @@ function AppShellContent() {
     return () => clearTimeout(t);
   }, [activeId, refresh]);
 
-  // Cmd/Ctrl+Shift+E toggles the file browser (mirrors VS Code's explorer).
+  // Cmd/Ctrl+Shift+E toggles the file browser, Cmd/Ctrl+Shift+G the git rail
+  // (mirrors VS Code). Opening one swaps the shared right-side slot.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key.toLowerCase() !== "e") return;
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
+      const key = e.key.toLowerCase();
+      if (key !== "e" && key !== "g") return;
       e.preventDefault();
-      setFilesMode((m) => (m === "closed" ? "docked" : "closed"));
+      toggleRightPanel(key === "e" ? "files" : "git");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [toggleRightPanel]);
 
   const activeCwd = sessions.find((s) => s.id === activeId)?.cwd ?? "";
 
@@ -221,18 +235,33 @@ function AppShellContent() {
           )}
           <button
             type="button"
-            onClick={() => setFilesMode((m) => (m === "closed" ? "docked" : "closed"))}
+            onClick={() => toggleRightPanel("files")}
             disabled={!activeId}
             title="Toggle file browser"
             className={cn(
               "ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] transition disabled:opacity-40",
-              filesMode === "closed"
-                ? "text-fg-muted hover:bg-raised hover:text-fg"
-                : "bg-raised text-fg",
+              rightPanel === "files"
+                ? "bg-raised text-fg"
+                : "text-fg-muted hover:bg-raised hover:text-fg",
             )}
           >
             <FolderTree size={13} />
             <span className="hidden sm:inline">Files</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleRightPanel("git")}
+            disabled={!activeId}
+            title="Toggle git changes"
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] transition disabled:opacity-40",
+              rightPanel === "git"
+                ? "bg-raised text-fg"
+                : "text-fg-muted hover:bg-raised hover:text-fg",
+            )}
+          >
+            <GitBranch size={13} />
+            <span className="hidden sm:inline">Git</span>
           </button>
           <button
             type="button"
@@ -287,15 +316,26 @@ function AppShellContent() {
           </div>
         )}
       </div>
-      {filesMode !== "closed" && activeId && activeCwd && (
+      {rightPanel === "files" && activeId && activeCwd && (
         <FileBrowser
           key={activeId}
           sessionId={activeId}
           cwd={activeCwd}
-          mode={filesMode}
-          onClose={() => setFilesMode("closed")}
-          onCollapse={() => setFilesMode("docked")}
-          onExpand={() => setFilesMode("full")}
+          mode={panelMode}
+          onClose={closeRightPanel}
+          onCollapse={() => setPanelMode("docked")}
+          onExpand={() => setPanelMode("full")}
+        />
+      )}
+      {rightPanel === "git" && activeId && activeCwd && (
+        <GitPanel
+          key={activeId}
+          sessionId={activeId}
+          cwd={activeCwd}
+          mode={panelMode}
+          onClose={closeRightPanel}
+          onCollapse={() => setPanelMode("docked")}
+          onExpand={() => setPanelMode("full")}
         />
       )}
 

@@ -180,10 +180,17 @@ describe("SessionService lifecycle", () => {
   test("new_session refreshes the pi ids on the row", async () => {
     const id = await seedSession();
     await control.sessions.start(id);
+    (await getDb())
+      .update(sessions)
+      .set({ lastTurnMs: 4321 })
+      .where(eq(sessions.id, id))
+      .run();
     const before = (await getDb()).select().from(sessions).where(eq(sessions.id, id)).get();
     await control.sessions.lifecycle(id, { op: "new_session" });
     const after = (await getDb()).select().from(sessions).where(eq(sessions.id, id)).get();
     expect(after!.piSessionFile).not.toBe(before!.piSessionFile);
+    // A fresh conversation has no completed turn to time.
+    expect(after!.lastTurnMs).toBeNull();
   });
 });
 

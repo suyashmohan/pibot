@@ -18,6 +18,8 @@ import {
   type FilePreviewData,
 } from "@/lib/file-browser";
 import type { MentionEntry } from "@/lib/file-mentions";
+import { readGitStatus } from "@/lib/git";
+import type { GitStatusSnapshot } from "@/lib/git-status";
 import {
   listBrowseEntries,
   listMentionEntries,
@@ -25,6 +27,7 @@ import {
   resolveWithinRoot,
 } from "@/lib/files";
 import { baseName } from "@/lib/utils";
+import { exportFileName, exportTempPath } from "@/lib/export-html";
 import { ControlError } from "./errors";
 import type { ControlDeps } from "./plane";
 import type { RawFile } from "./types";
@@ -44,6 +47,16 @@ export interface FileService {
     relPath: string,
     opts?: { download?: boolean },
   ): Promise<RawFile>;
+  /**
+   * Working-tree change summary for the session folder (staged + unstaged +
+   * untracked vs HEAD). Pure read: spawns git, never pi.
+   */
+  gitStatus(sessionId: string): Promise<GitStatusSnapshot>;
+  /**
+   * Stream-ready descriptor for the session's staged HTML export (written by
+   * `control("export_html")` into the OS temp dir). Never spawns.
+   */
+  exportFile(sessionId: string): Promise<RawFile>;
 }
 
 /** Header-safe file name for Content-Disposition. */
@@ -156,6 +169,44 @@ export function createFileService(deps: ControlDeps): FileService {
         size: stat.size,
         contentType: rawContentType(name, kind),
         download,
+      };
+    },
+
+    async gitStatus(sessionId) {
+      const cwd = await sessionCwd(sessionId);
+      return readGitStatus(cwd);
+    },
+
+    async exportFile(sessionId) {
+      await sessionCwd(sessionId); // 404 when the session row is missing
+      const abs = exportTempPath(sessionId);
+      const file = Bun.file(abs);
+      let stat: Awaited<ReturnType<typeof file.stat>>;
+      try {
+        stat = await file.stat();
+      } catch (err) {
+        if ((err as { code?: string }).code === "ENOENT") {
+          throw new ControlError(
+            "not_found",
+            "No export yet — export the session first",
+            { status: 404 },
+          );
+        }
+        throw err;
+      }
+      if (!stat.isFile()) {
+        throw new ControlError("bad_request", "Export path is not a file", {
+          status: 400,
+        });
+      }
+      // The export is HTML the user opens from Downloads. Always attachment
+      // (never inline) so it cannot run as same-origin code in a tab.
+      return {
+        absPath: abs,
+        name: exportFileName(sessionId),
+        size: stat.size,
+        contentType: "text/html; charset=utf-8",
+        download: true,
       };
     },
   };

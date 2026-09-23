@@ -25,12 +25,22 @@ interface SessionMeta {
   piSessionFile: string | null;
   createdAt: number;
   updatedAt: number;
+  lastTurnMs: number | null;
 }
 
 export interface Toast {
   id: string;
   kind: "info" | "warning" | "error";
   message: string;
+}
+
+/**
+ * Coerce a duration from JSON to a displayable number. The server contract is
+ * `number | null`, but a drifted schema (or an old build) can hand back the
+ * raw column name — that must hide the footer, not render "Completed in —".
+ */
+function asTurnMs(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 export function usePiSession(sessionId: string | null) {
@@ -50,6 +60,12 @@ export function usePiSession(sessionId: string | null) {
     Array<{ name: string; description?: string; source: string }>
   >([]);
   const [connected, setConnected] = useState(false);
+  /**
+   * Wall time of the last completed agent turn (ms), measured by the manager
+   * and persisted on the session row, so refreshes keep it. Null until a turn
+   * settles.
+   */
+  const [lastTurnMs, setLastTurnMs] = useState<number | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pushToast = useCallback((kind: Toast["kind"], message: string) => {
@@ -111,6 +127,7 @@ export function usePiSession(sessionId: string | null) {
       setMessages(data.messages ?? []);
       setLiveError(data.liveError);
       setHasProcess(Boolean(data.live));
+      setLastTurnMs(asTurnMs(data.session.lastTurnMs));
       setView((v) => ({
         ...v,
         streaming: Boolean(data.state?.isStreaming),
@@ -154,6 +171,7 @@ export function usePiSession(sessionId: string | null) {
   useEffect(() => {
     setView((v) => ({ ...emptySessionView(), queue: v.queue }));
     setHasProcess(false);
+    setLastTurnMs(null);
     void loadSession();
   }, [sessionId, loadSession]);
 
@@ -174,7 +192,13 @@ export function usePiSession(sessionId: string | null) {
           setConnected(true);
           setLiveError(null);
           break;
+        case "turn.started":
+          setLastTurnMs(null);
+          break;
         case "turn.settled":
+          // The manager measures the turn and annotates the settle event, so
+          // this matches what a later refresh reads from the session row.
+          setLastTurnMs(asTurnMs(ev.durationMs));
           void refreshMessages();
           void refreshStats();
           break;
@@ -207,6 +231,8 @@ export function usePiSession(sessionId: string | null) {
           pushToast("error", `Extension error: ${ev.error}`);
           break;
         case "process.exited":
+          // The turn never completed — do not let the old row value reappear.
+          setLastTurnMs(null);
           // Keep the (wrong) legacy copy: focusing the composer respawns.
           pushToast("error", "Pi process exited. Reload the session to respawn it.");
           break;
@@ -340,6 +366,7 @@ export function usePiSession(sessionId: string | null) {
     bashLive: view.bashLive,
     streaming: view.streaming,
     compacting: view.compacting,
+    lastTurnMs,
     loading,
     hasProcess,
     ensureProcess,

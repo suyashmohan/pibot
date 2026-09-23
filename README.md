@@ -13,7 +13,9 @@ instead of your account. Do not expose it to the internet — see
 - **One web session = one `pi --mode rpc` subprocess** running in the session's
   working directory (where `read` / `write` / `edit` / `bash` operate).
 - **Live streaming** via Server-Sent Events: text/thinking deltas, tool
-  progress, queue updates, compaction + retry status.
+  progress, queue updates, compaction + retry status, and the completed
+  turn's wall time (small, muted, persisted per session) at the end of the
+  transcript — it stays after a refresh.
 - **Full RPC coverage**: prompt / steer / follow-up / abort / clear-queue,
   models + thinking levels, compact, bash, fork / clone / new session,
   export HTML, session tree, and the **extension UI dialog protocol**
@@ -27,6 +29,11 @@ instead of your account. Do not expose it to the internet — see
   text/code (highlight.js syntax highlighting) and markdown (rendered GFM or
   highlighted source). Docked beside the chat from `md` up, full-screen
   takeover on phones or via the expand button.
+- **Right-side git rail** (collapsed by default; Git button or
+  `⌘/Ctrl+Shift+G`): working-tree changes vs HEAD — changed files with
+  added/removed line counts and status badges, no diff text. Shares the file
+  browser's slot (only one rail open at a time), polls while open, and says
+  so plainly when the session folder is not a git repository.
 - **Responsive**: mobile drawer sidebar with backdrop (< 768px), static
   sidebar on tablet/desktop, overflow (⋯) action menu in the chat header on
   mobile, fluid model-picker dropdown and toasts.

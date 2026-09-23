@@ -15,6 +15,8 @@ export const sessions = sqliteTable("sessions", {
   piSessionFile: text("pi_session_file"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
+  /** Wall time (ms) of the last completed agent turn; null until one settles. */
+  lastTurnMs: integer("last_turn_ms"),
 });
 
 /** Cached copy of pi messages (pi's JSONL file is the source of truth). */

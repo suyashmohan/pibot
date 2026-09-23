@@ -40,8 +40,11 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
   (`sweepIdleClients`, 60s sweeper) and concurrency is capped
   (`enforceProcessCap`, LRU idle eviction, busy sessions spared).
   `entry.client` is nullable — reap keeps the entry and emitter so respawn
-  is transparent. **Known leaks stay locked**: `GET /model`, `GET /tree` and
-  `GET /api/models` do spawn on purpose (`test/lazy-spawn.test.ts`).
+  is transparent. Each `agent_settled` persists the turn's wall time to
+  `sessions.last_turn_ms` and tags the broadcast event with the same
+  `durationMs`, so the transcript footer survives refresh and the live tab
+  agrees with the row. **Known leaks stay locked**: `GET /model`, `GET /tree`
+  and `GET /api/models` do spawn on purpose (`test/lazy-spawn.test.ts`).
 - `lib/control/` — the control plane. `plane.ts` (`createControlPlane()` +
   the `control` singleton) exposes `sessions` / `processes` / `projects` /
   `health`. Services throw `ControlError` with an **explicit** `status`
@@ -90,7 +93,9 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
   validated `--pibot-*` overrides.
 - `lib/db/` — drizzle + `bun:sqlite`. **`getDb()` is async** — always
   `await` it. Pi's JSONL files are source of truth; sqlite is a cache
-  synced from `get_messages`.
+  synced from `get_messages`. New nullable columns (e.g. `last_turn_ms`) need
+  an idempotent `ALTER TABLE` in `lib/db/index.ts` — `CREATE TABLE IF NOT
+  EXISTS` cannot evolve an existing `data/pibot.db`.
 - `lib/runtime.ts` (`assertBunRuntime`), `lib/emitter.ts` (tiny emitter),
   `lib/files.ts` (`dirExists`/`hasSqlMigrations` via `Bun.Glob`).
   `node:path` is fine (string math, no Bun equivalent); no other `node:`
@@ -114,7 +119,7 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
   compose publishes `127.0.0.1` only (`PIBOT_PORT` overrides the host port).
   Volumes: `/app/data` (sqlite) and `/root/.pi` (pi auth/sessions).
 - `app/api/sessions/**` — session CRUD, prompt/control/model/stats/tree/
-  lifecycle/bash/extension-ui/stream. `app/api/projects` — pinned +
+  lifecycle/bash/extension-ui/stream/export. `app/api/projects` — pinned +
   discovered project folders (stored in sqlite `settings` table).
   `app/api/processes` — live pi subprocess inventory (`GET`) + manual
   stop/kill (`POST /api/processes/stop`, SIGTERM or `force`=SIGKILL);
@@ -130,6 +135,19 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
   `hooks/useFileBrowser.ts`, `components/FileBrowser.tsx` +
   `FileEntries.tsx` (list/gallery) + `FilePreview.tsx` (image lightbox,
   code, markdown Rendered/Source).
+- `GET /api/sessions/[id]/git` — working-tree change summary for the
+  right-side git rail: change status + added/removed line counts per file,
+  **no diff text**. `git` is spawned directly by the server (`lib/git.ts`,
+  never pi), so opening the rail stays on the lazy-spawn-safe read path.
+  Pure parsers in `lib/git-status.ts`, `hooks/useGitStatus.ts`,
+  `components/GitPanel.tsx`. Files and Git share one right-side slot
+  (`nextRightPanel` in `lib/layout.ts`) — identical width/placement, only
+  one open at a time; `components/RightPanel.tsx` owns that shared chrome.
+- `GET /api/sessions/[id]/export` — downloads the HTML export staged by
+  `POST .../control { action: "export_html" }`. pi's default output path is
+  the session cwd, so the control plane passes an explicit `/tmp/`
+  `outputPath` (`lib/export-html.ts` owns the name/URL helpers both sides
+  share). The GET is a pure read: never spawn pi on a download.
 - `hooks/usePiSession.ts`, `hooks/useProjects.ts`,
   `hooks/useMediaQuery.ts`, `components/*`
   (project-grouped `Sidebar` — drawer on mobile, static from `md` up —
@@ -151,6 +169,12 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
   `NODE_ENV=development` Next 16.3 crashes while prerendering its internal
   `/_global-error` page (`TypeError: null is not an object (evaluating
   'k.H.useContext')`) — the build is red for environmental reasons, not code.
+- After changing `lib/db/schema.ts`, **restart `bun run dev`**. The cached
+  `globalThis.__pibotDbPromise` survives HMR, so the running process never
+  runs the `ALTER` in `lib/db/index.ts`; worse, drizzle does not error on a
+  missing column — it returns the raw column name (e.g. `lastTurnMs:
+  "last_turn_ms"`), which surfaces as `Completed in —`. `bun run start`/
+  `bun run build` boot fresh and migrate correctly.
 - Dynamic filesystem paths in app routes trip Turbopack's "tracing the whole
   project" warning. The intentional ones (`lib/files.ts`) carry
   `path.join(/* turbopackIgnore: true */ …)`; keep it that way when adding

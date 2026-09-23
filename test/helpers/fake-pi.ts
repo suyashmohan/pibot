@@ -19,6 +19,8 @@
  * `clone` / `switch_session` / `new_session` move the reported session
  * file/id so the control-plane clone dance is observable (a naive clone test
  * against a stub that ignores the command would be false-green).
+ * `export_html` writes a tiny HTML file — to `outputPath` when given, else to
+ * the process cwd, matching real pi's default.
  *
  * Special command `{"type":"never_reply"}` is swallowed for timeout tests.
  */
@@ -145,7 +147,7 @@ function burstWithResponse(id: unknown, command: string, text: string): void {
   sendAll([responsePayload(id, command), ...head, ...tail]);
 }
 
-function handle(cmd: Record<string, unknown>): void {
+async function handle(cmd: Record<string, unknown>): Promise<void> {
   const { id, type } = cmd;
   switch (type) {
     case "get_state":
@@ -234,6 +236,21 @@ function handle(cmd: Record<string, unknown>): void {
         cost: 0,
       });
       break;
+    case "export_html": {
+      // Real pi defaults to `${cwd}/pi-session-…_….html` when outputPath is
+      // omitted — the stub must do the same or the staging regression is
+      // invisible.
+      const outputPath =
+        typeof cmd.outputPath === "string" && cmd.outputPath
+          ? cmd.outputPath
+          : `${process.cwd()}/pi-session-fake-export.html`;
+      await Bun.write(
+        outputPath,
+        "<!doctype html><html><body>fake export</body></html>",
+      );
+      respond(id, String(type), true, { path: outputPath });
+      break;
+    }
     case "never_reply":
       break; // swallowed on purpose (client timeout tests)
     default:
@@ -242,6 +259,10 @@ function handle(cmd: Record<string, unknown>): void {
 }
 
 let buf = "";
+// Commands run through a promise queue: `export_html` writes the file before
+// responding, and serializing keeps response order stable for pipelined input.
+let queue: Promise<void> = Promise.resolve();
+
 process.stdin.on("data", (chunk: Buffer) => {
   buf += chunk.toString("utf8");
   for (;;) {
@@ -251,10 +272,10 @@ process.stdin.on("data", (chunk: Buffer) => {
     buf = buf.slice(idx + 1);
     if (line.endsWith("\r")) line = line.slice(0, -1);
     if (!line.trim()) continue;
-    try {
-      handle(JSON.parse(line) as Record<string, unknown>);
-    } catch {
-      /* ignore malformed input */
-    }
+    queue = queue
+      .then(() => handle(JSON.parse(line) as Record<string, unknown>))
+      .catch(() => {
+        /* ignore malformed input */
+      });
   }
 });

@@ -51,6 +51,13 @@ describe("projector: turn lifecycle", () => {
     expect(p.view.draft.text).toBe("");
   });
 
+  test("agent_settled carries the manager-measured turn duration", () => {
+    const p = createProjector();
+    expect(push(p, { type: "agent_settled", durationMs: 1234 })).toEqual([
+      { type: "turn.settled", durationMs: 1234 },
+    ]);
+  });
+
   test("client_exit → process.exited and streaming stops", () => {
     const p = createProjector();
     push(p, { type: "agent_start" });

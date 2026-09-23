@@ -65,7 +65,10 @@ Browser  ── fetch + EventSource ──▶  Next.js API routes
    single projector (`lib/control/projector.ts`) into snapshot `SessionEvent`s
    and streaming-draft state, then refreshes the cached transcript after settle.
 5. On `agent_settled` / `compaction_end`, the manager calls `get_messages` and
-   replaces the SQLite message rows for that session.
+   replaces the SQLite message rows for that session. `agent_settled` also
+   persists the turn's wall time (`sessions.last_turn_ms`) and tags the live
+   event with the same `durationMs`, so the transcript footer survives a
+   refresh and the open tab cannot disagree with the stored value.
 
 Commands are plain POSTs. Live updates are SSE. Next route handlers cannot
 hold WebSockets without a custom server, so this split is intentional.
@@ -105,6 +108,7 @@ Spawning is **lazy on user intent**. Viewing a session must never start `pi`.
 | ---- | ------- |
 | `GET /api/sessions`, `GET /api/sessions/[id]`, `/messages`, `/stats`, SSE `/stream` | No. Cache / `live: false`. |
 | Read-only `POST /control` (`get_commands`, `get_fork_messages`, `get_last_assistant_text`) | No if asleep. |
+| `GET /api/sessions/[id]/export` (downloads the staged HTML export) | No. Streams the temp file; staging happened via mutating `/control`. |
 | `POST /api/sessions/[id]/start` (composer focus) | Yes. |
 | `POST /prompt`, `/bash`, mutating `/control`, `/lifecycle`, `/model` POST | Yes (`ensureClient`). |
 | `GET /api/sessions/[id]/model` | **Yes** (opens the model picker). Slight leak of the lazy-spawn idea. |
@@ -179,7 +183,7 @@ necessarily the one you were in.
 | ----- | ---- |
 | `AppShell` | Sessions list, project groups, process poll (5s), file-browser toggle (`⌘/Ctrl+Shift+E`), new-session modal. |
 | `Sidebar` | Project-grouped sessions, search, pin/unpin folders, process dots (working/idle). Collapse prefs in `localStorage`. |
-| `ChatView` | Header (rename, model, compact, bash, clone, export), transcript, composer. |
+| `ChatView` | Header (rename, model, compact, bash, clone, export), transcript (completed-turn duration in muted small text), composer. |
 | `Composer` | Focus → `onIntent` → start pi. `/` slash commands, `@` file mentions, images, steer/follow-up queue. |
 | `usePiSession` | SSE consumer, streaming draft (`STREAMING_MESSAGE_ID`), dialogs, toasts. |
 | `ThemeMenu` / `ThemeProvider` | Theme switcher in the top strip; registry + storage in `lib/themes.ts`. |
@@ -208,8 +212,10 @@ still Bun), `dynamic = "force-dynamic"`.
 - `GET/PATCH/DELETE /api/sessions/[id]` — detail from cache or live; rename; delete.
 - `POST .../start`, `.../prompt`, `.../control`, `.../model`, `.../bash`, `.../lifecycle`, `.../extension-ui`
 - `GET .../messages`, `.../stats`, `.../stream`, `.../tree` (tree unused by UI)
+- `GET .../export` — download the staged HTML export (`/tmp/pibot-export-<id>.html`), written by `POST .../control { action: "export_html" }`
 - `GET .../files?dir=` — `@` mention listing
 - `GET .../files/browse`, `.../content`, `.../raw` — file browser
+- `GET .../git` — working-tree changes vs HEAD (files + line counts, no diff text)
 - `GET/POST/DELETE /api/projects` — pinned + discovered folders
 - `GET /api/projects/folders` — filesystem directory picker
 - `GET /api/processes`, `POST /api/processes/stop`
@@ -231,6 +237,7 @@ JSON envelope: `{ ok: true, data }` or `{ ok: false, error }`.
 | Bind address | `lib/net.ts` + `scripts/next.ts` |
 | Schema | `lib/db/schema.ts` + inline DDL in `lib/db/index.ts` |
 | Path jail, listings, previews | `lib/files.ts`, `lib/file-browser.ts` |
+| Git change summary | `lib/git.ts`, `lib/git-status.ts`, `components/GitPanel.tsx` |
 | Streaming UI | `hooks/usePiSession.ts`, `components/MessageList.tsx` |
 | Theme tokens / registry | `lib/themes.ts`, `app/globals.css`, `components/ThemeProvider.tsx` |
 | Composer / mentions / slash | `components/Composer.tsx`, `lib/file-mentions.ts`, `lib/slash-commands.ts` |
@@ -293,8 +300,9 @@ sensible cuts.
    lists `~/.pi` and attaches a web row to an existing file
    (`switch_session` exists on the lifecycle API).
 3. **Fork-from-message is API-only.** `POST /lifecycle { op: "fork", entryId }`
-   and `get_fork_messages` exist; the UI only exposes clone + “new pi session”.
-   There is no click-a-transcript-row-to-fork.
+   and `get_fork_messages` exist; the UI only exposes clone.
+   There is no click-a-transcript-row-to-fork. `new_session` and
+   `switch_session` are API-only too.
 4. **Transcript search is missing.** Sidebar search is name/preview only.
 5. **Extension UI is partial.** `select` / `confirm` / `input` / `editor` /
    `notify` render. `setStatus` / `setWidget` / `setTitle` / `set_editor_text`

@@ -11,6 +11,7 @@
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { sessions as sessionsTable } from "@/lib/db/schema";
+import { exportTempPath } from "@/lib/export-html";
 import { ControlError } from "./errors";
 import type { MutatingKind } from "./policy";
 import type { RpcResponse } from "@/lib/pi/types";
@@ -345,11 +346,16 @@ export function createRuntimeOps(deps: ControlDeps): RuntimeOps {
           return { response: res, live: true };
         }
         case "export_html": {
+          // pi defaults to `${cwd}/pi-session-…_….html`; stage in the temp
+          // dir instead so an export never pollutes the user's project. The
+          // browser then downloads it from GET /api/sessions/[id]/export.
+          const outputPath =
+            typeof body.outputPath === "string" && body.outputPath
+              ? body.outputPath
+              : exportTempPath(id);
           const res = await session.sendRaw({
             type: "export_html",
-            ...(typeof body.outputPath === "string" && body.outputPath
-              ? { outputPath: body.outputPath }
-              : {}),
+            outputPath,
           });
           if (!res.success) throw responseError(res, "export failed");
           return { response: res };
@@ -385,6 +391,9 @@ export function createRuntimeOps(deps: ControlDeps): RuntimeOps {
                 .set({
                   piSessionId: typeof d.sessionId === "string" ? d.sessionId : null,
                   piSessionFile: typeof d.sessionFile === "string" ? d.sessionFile : null,
+                  // Fresh conversation: the previous turn's timing no longer
+                  // describes anything on screen.
+                  lastTurnMs: null,
                   updatedAt: deps.now(),
                 })
                 .where(eq(sessionsTable.id, id))

@@ -8,6 +8,7 @@
 import { request, type ApiResult, type HttpClientOptions } from "./http";
 import { subscribeSession } from "./stream";
 import { rawFileUrl, type BrowseEntry, type FilePreviewData } from "@/lib/file-browser";
+import type { GitStatusSnapshot } from "@/lib/git-status";
 import type { MentionEntry } from "@/lib/file-mentions";
 import type {
   AgentMessage,
@@ -230,6 +231,12 @@ export class PiBotClient {
         method: "POST",
         body: JSON.stringify({ id, ...opts }),
       }),
+  };
+
+  git = {
+    /** Working-tree changes vs HEAD: files + line counts, never diff text. */
+    status: (sessionId: string): Promise<GitStatusSnapshot> =>
+      this.call<GitStatusSnapshot>(`/api/sessions/${enc(sessionId)}/git`),
   };
 
   projects = {

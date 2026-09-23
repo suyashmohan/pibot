@@ -10,6 +10,7 @@
  */
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { GET as sessionGET } from "@/app/api/sessions/[id]/route";
+import { GET as gitGET } from "@/app/api/sessions/[id]/git/route";
 import { POST as controlPOST } from "@/app/api/sessions/[id]/control/route";
 import { GET as messagesGET } from "@/app/api/sessions/[id]/messages/route";
 import { GET as modelGET } from "@/app/api/sessions/[id]/model/route";
@@ -146,6 +147,16 @@ describe("viewing a session does not spawn a pi process", () => {
     expect(data.data.state).toBeNull();
     expect(data.data.stats).toBeNull();
     expect(data.data.live).toBe(false);
+    await assertNoProcess(id);
+  });
+
+  test("git change summary serves the working tree without spawning", async () => {
+    const id = await seedSession();
+    const res = await gitGET(new Request("http://localhost/api/test"), params(id));
+    expect(res.status).toBe(200);
+    const data = await body<{ data: { isRepo: boolean; files: unknown[] } }>(res);
+    expect(data.data.isRepo).toBe(false); // temp dir is not a repo
+    expect(data.data.files).toEqual([]);
     await assertNoProcess(id);
   });
 

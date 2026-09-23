@@ -18,40 +18,13 @@ import { baseName, cn } from "@/lib/utils";
 import { breadcrumbs, parentPath, type BrowseEntry, type FileView } from "@/lib/file-browser";
 import { FileEntries } from "./FileEntries";
 import { FilePreview } from "./FilePreview";
+import {
+  PanelIconButton as IconButton,
+  rightPanelClass,
+  type RightPanelMode,
+} from "./RightPanel";
 
-export type FilePanelMode = "docked" | "full";
-
-function IconButton({
-  title,
-  onClick,
-  active,
-  disabled,
-  className,
-  children,
-}: {
-  title: string;
-  onClick: () => void;
-  active?: boolean;
-  disabled?: boolean;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "rounded-lg p-1.5 transition disabled:opacity-30",
-        active ? "bg-raised text-fg" : "text-fg-subtle hover:bg-raised hover:text-fg",
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
+export type FilePanelMode = RightPanelMode;
 
 /**
  * Right-hand file browser for the active session's project folder.
@@ -146,13 +119,7 @@ export function FileBrowser({
   return (
     <aside
       aria-label="File browser"
-      className={cn(
-        "flex flex-col bg-app",
-        mode === "full"
-          ? "fixed inset-0 z-50"
-          : // Phones: full-screen takeover under the drawer/scrim. Desktop: docked rail.
-            "fixed inset-0 z-20 md:static md:z-auto md:w-[300px] md:shrink-0 md:border-l md:border-line/80 lg:w-[340px]",
-      )}
+      className={rightPanelClass(mode)}
     >
       <div className="flex shrink-0 items-center gap-1 border-b border-line/80 bg-app px-2 py-1.5">
         <IconButton

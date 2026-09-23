@@ -37,6 +37,20 @@ export function nextSidebarUser(current: boolean | null, isMobile: boolean): boo
   return !(current ?? !isMobile);
 }
 
+/** Which rail owns the right-side slot (or none). */
+export type RightPanelKind = "files" | "git" | "closed";
+
+/**
+ * The right rail hosts either Files or Git, never both: opening one closes
+ * the other, and clicking the already-open one closes the rail.
+ */
+export function nextRightPanel(
+  current: RightPanelKind,
+  which: Exclude<RightPanelKind, "closed">,
+): RightPanelKind {
+  return current === which ? "closed" : which;
+}
+
 /** SSR-safe: empty set when localStorage is unavailable. */
 export function loadCollapsedPaths(): Set<string> {
   try {

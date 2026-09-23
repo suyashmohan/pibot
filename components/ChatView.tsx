@@ -15,8 +15,9 @@ import {
   Sparkles,
 } from "lucide-react";
 import { pibot, ClientError } from "@/lib/client";
+import { exportDownloadUrl, exportFileName } from "@/lib/export-html";
 import { usePiSession } from "@/hooks/usePiSession";
-import { cn, truncate } from "@/lib/utils";
+import { cn, formatDuration, truncate } from "@/lib/utils";
 import { Composer, type OutgoingImage } from "./Composer";
 import { ModelPicker } from "./ModelPicker";
 import { MessageList } from "./MessageList";
@@ -172,8 +173,11 @@ export function ChatView({
 
   const exportHtml = async () => {
     const r = await control("export_html");
-    const p = (r?.response?.data as { path?: string } | undefined)?.path;
-    if (r) s.pushToast("info", p ? `Exported to ${p}` : "Exported.");
+    if (!r) return;
+    // The control plane stages the export in the OS temp dir; pull it down
+    // from the same-origin download route (attachment, so the page stays put).
+    triggerDownload(exportDownloadUrl(sessionId), exportFileName(sessionId));
+    s.pushToast("info", "Export downloaded.");
   };
 
   const lifecycle = async (op: string, extra?: Record<string, unknown>) => {
@@ -317,7 +321,11 @@ export function ChatView({
           <HeaderBtn title="Copy last assistant message" onClick={copyLast}>
             <Copy size={14} />
           </HeaderBtn>
-          <HeaderBtn title="Export session to HTML" onClick={() => void exportHtml()}>
+          <HeaderBtn
+            title="Export session to HTML"
+            onClick={() => void exportHtml()}
+            loading={busy === "export_html"}
+          >
             <Download size={14} />
           </HeaderBtn>
           <HeaderBtn title="Clear queued messages" onClick={() => void control("clear_queue")}>
@@ -344,9 +352,6 @@ export function ChatView({
                   Slash commands ({s.commands.length})
                 </span>
                 <div className="flex gap-1.5">
-                  <MiniBtn onClick={() => void lifecycle("new_session")} loading={busy === "new_session"}>
-                    New pi session
-                  </MiniBtn>
                   <MiniBtn onClick={() => void lifecycle("clone")} loading={busy === "clone"}>
                     Clone branch
                   </MiniBtn>
@@ -428,6 +433,11 @@ export function ChatView({
               )}
             </div>
           )}
+          {!s.streaming && !s.compacting && s.lastTurnMs != null && (
+            <p className="text-[11px] text-fg-faint">
+              Completed in {formatDuration(s.lastTurnMs)}
+            </p>
+          )}
         </div>
       </div>
 
@@ -465,6 +475,21 @@ export function ChatView({
       <Toasts toasts={s.toasts} onDismiss={s.dismissToast} />
     </div>
   );
+}
+
+/**
+ * Hand a same-origin URL to the browser's download manager. The endpoint
+ * answers with `Content-Disposition: attachment`, so the page is not left.
+ */
+function triggerDownload(url: string, filename: string): void {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 function HeaderBtn({

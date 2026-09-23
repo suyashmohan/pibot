@@ -125,6 +125,7 @@ The product request is not “build a framework.” It is: **same repo, same app
 | Browser fetch | `lib/client-api.ts` | Generic `{ ok, data }` helper. Also holds `SessionListItem` / `ProjectListItem` (duplicates of proposed control types). |
 | Security | `lib/request-guard.ts` + `proxy.ts` | Host allowlist, same-origin CSRF, optional HttpOnly `PIBOT_TOKEN`. Must stay the HTTP boundary. |
 | Raw files | `lib/file-browser.ts` `rawFileUrl` | Always `/api/sessions/${id}/files/raw?path=…` — locked by `test/file-browser-ui.test.ts`. Must stay a same-origin URL for `<img src>`. |
+| HTML export | `lib/export-html.ts` | `export_html` stages `/tmp/pibot-export-<id>.html` (pi would default to the session cwd); the browser downloads `exportDownloadUrl(id)` from `GET /api/sessions/[id]/export`. Naming is shared by the control plane and the UI. |
 
 Spawn vs no-spawn (must not regress; **extend** `test/lazy-spawn.test.ts` so leaks are locked too):
 
@@ -132,6 +133,7 @@ Spawn vs no-spawn (must not regress; **extend** `test/lazy-spawn.test.ts` so lea
 | ---- | ------- | ------------- |
 | `GET /api/sessions`, `GET /api/sessions/[id]`, `/messages`, `/stats`, SSE `/stream` | No | Yes (`lazy-spawn.test.ts`) |
 | Read-only `POST /control` (`get_commands`, `get_fork_messages`, `get_last_assistant_text`) | No if asleep | Yes |
+| `GET /api/sessions/[id]/export` (staged HTML export download) | No | Yes (`http-contract/export-download.test.ts`) |
 | `POST /api/sessions/[id]/start` | Yes | Yes |
 | `POST /prompt`, `/bash`, mutating `/control`, `/lifecycle`, `/model` POST | Yes | Manager tests, not HTTP 409 |
 | `GET /api/sessions/[id]/model` | **Yes** (known leak; ChatView picker `onOpen`) | **No — PR 1 must add** |
@@ -358,7 +360,7 @@ export class ControlError extends Error {
 
 `mapControlError(err)`: if `ControlError`, `fail(message, err.status, extra)`; else `fail(toErrorMessage(err), 500)` — same as today’s generic catch.
 
-Do **not** invent `RpcResult`. HTTP `data.response` is `RpcResponse` from `lib/pi/types.ts` (re-exported as a type from control). ChatView export reads `r.data.response.data.path`.
+Do **not** invent `RpcResult`. HTTP `data.response` is `RpcResponse` from `lib/pi/types.ts` (re-exported as a type from control). `control("export_html")` stages the transcript at `exportTempPath(id)` and returns `data.path`; ChatView ignores the path (it knows `exportDownloadUrl(id)`) and hands it to the browser.
 
 ### CallContext (on mutating methods now)
 
@@ -635,7 +637,7 @@ export type SessionEvent =
   | { type: "session.ready"; sessionId: string; ts: number }
   | { type: "turn.started" }
   | { type: "turn.ended" }
-  | { type: "turn.settled" }
+  | { type: "turn.settled"; durationMs?: number }
   | { type: "draft.cleared" }
   | { type: "draft.updated"; draft: StreamingDraft }
   | { type: "tool.started"; toolCallId: string; name: string }
@@ -663,7 +665,7 @@ This table is the spec. Implement as `test/control/projector.test.ts`. Inner `+=
 | ------------------------ | --------------- | ---------------------------- |
 | SSE `ready` | `session.ready` | unchanged |
 | `agent_start` | `turn.started` | `streaming = true` |
-| `agent_settled` | `turn.settled` | `streaming = false`, draft = empty |
+| `agent_settled` | `turn.settled` (`durationMs` when the manager measured the run) | `streaming = false`, draft = empty |
 | `agent_end` / `turn_end` / `message_end` | `turn.ended` (no `source` field) | unchanged (REST refresh is the hook; every `turn.ended` is equivalent — see runtime table) |
 | `message_start` (assistant) | `draft.cleared` | draft = empty |
 | `message_update` / `text_delta` | `draft.updated` { full draft } | `draft.text += delta` internally |

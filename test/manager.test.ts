@@ -104,6 +104,32 @@ describe("manager with fake-pi", () => {
     expect(cached).toHaveLength(2);
   });
 
+  test("persists the completed turn's wall time and tags the settle event", async () => {
+    process.env.FAKE_PI_SLOW_TURN_MS = "300";
+    try {
+      const { id } = await makeRow();
+      const client = await ensureClient(id);
+      const settled = waitFor(id, "agent_settled");
+      await client.send({ type: "prompt", message: "slow" });
+      const ev = await settled;
+
+      // The live SSE event carries the same number that gets persisted, so a
+      // page refresh cannot disagree with what the open tab already showed.
+      expect(typeof ev.durationMs).toBe("number");
+      expect(Number(ev.durationMs)).toBeGreaterThanOrEqual(250);
+
+      // The DB write is fire-and-forget after settle — poll briefly.
+      let row = (await getDb()).select().from(sessions).where(eq(sessions.id, id)).get();
+      for (let i = 0; row?.lastTurnMs == null && i < 100; i++) {
+        await Bun.sleep(10);
+        row = (await getDb()).select().from(sessions).where(eq(sessions.id, id)).get();
+      }
+      expect(row?.lastTurnMs).toBe(Number(ev.durationMs));
+    } finally {
+      delete process.env.FAKE_PI_SLOW_TURN_MS;
+    }
+  }, 20_000);
+
   test("missing working directory throws instead of spawning", async () => {
     const { id } = await makeRow("/nope-missing-dir-pibot-xyz");
     await expect(ensureClient(id)).rejects.toThrow("does not exist");

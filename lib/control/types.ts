@@ -338,6 +338,8 @@ export interface SessionRecord {
   piSessionFile: string | null;
   createdAt: number;
   updatedAt: number;
+  /** Wall time (ms) of the last completed agent turn; null until one settles. */
+  lastTurnMs: number | null;
 }
 
 export interface SessionListItem extends SessionRecord {
@@ -486,7 +488,7 @@ export type SessionEvent =
   | { type: "session.ready"; sessionId: string; ts: number }
   | { type: "turn.started" }
   | { type: "turn.ended" }
-  | { type: "turn.settled" }
+  | { type: "turn.settled"; durationMs?: number }
   | { type: "draft.cleared" }
   | { type: "draft.updated"; draft: StreamingDraft }
   | { type: "tool.started"; toolCallId: string; name: string }
