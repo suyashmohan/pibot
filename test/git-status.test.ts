@@ -191,6 +191,23 @@ describe("buildChangedFiles", () => {
     expect(files[0]).toMatchObject({ path: "renamed.ts", origPath: "old.ts", kind: "renamed", added: 3, removed: 1 });
   });
 
+  test("folds a staged delete plus a recreated untracked file into one row", () => {
+    // `git rm --cached f` leaves the file on disk, so porcelain emits `D  f`
+    // and `?? f` for the same path. Two rows would duplicate React keys and
+    // double-count the same numstat into the totals.
+    const entries = parsePorcelainZ(z("D  f.txt", "?? f.txt"));
+    const files = buildChangedFiles(entries, parseNumstatZ(z("0\t1\tf.txt")));
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatchObject({
+      path: "f.txt",
+      origPath: null,
+      // The worktree record describes what is on disk now.
+      kind: "untracked",
+      staged: true,
+      unstaged: true,
+    });
+  });
+
   test("keeps binary untracked files unknown and sorts by path", () => {
     const entries = parsePorcelainZ(z("?? z.txt", "?? a.bin", " M m.ts"));
     const files = applyUntrackedLines(
@@ -296,6 +313,30 @@ describe("readGitStatus", () => {
       staged: true,
       unstaged: false,
     });
+  });
+
+  test("does not duplicate a path that is staged-deleted and untracked", async () => {
+    const dir = await initRepo();
+    dirs.push(dir);
+    await Bun.write(`${dir}/f.txt`, "hi\n");
+    await git(dir, "add", "-A");
+    await git(dir, "commit", "-qm", "init");
+    // Index deletion, worktree file kept: git reports `D  f.txt` + `?? f.txt`.
+    await git(dir, "rm", "-q", "--cached", "f.txt");
+
+    const status = await readGitStatus(dir, { limit: 1 });
+    expect(status.files.map((f) => f.path)).toEqual(["f.txt"]);
+    expect(status.files[0]).toMatchObject({
+      kind: "untracked",
+      staged: true,
+      unstaged: true,
+      added: 1,
+      removed: 0,
+    });
+    expect(status.added).toBe(1);
+    expect(status.removed).toBe(0);
+    // One real file, so a limit of 1 is not a truncated list.
+    expect(status.truncated).toBe(false);
   });
 
   test("handles a repo without commits (unborn HEAD)", async () => {

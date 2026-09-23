@@ -2,10 +2,10 @@
  * Runtime session operations: start, prompt, abort, compact, bash, model,
  * lifecycle, dialogs, tree.
  *
- * Status codes are frozen to today's HTTP adapter behavior (see the parity
- * appendix in docs/control-plane.md): every `ensure`-path failure is a 500 by
- * default, steer/follow_up failures are always 409, and a default prompt only
- * 409s when the error text looks like a busy agent.
+ * Status codes are frozen to today's HTTP adapter behavior (locked by
+ * `test/http-contract/**`): every `ensure`-path failure is a 500 by default,
+ * steer/follow_up failures are always 409, and a default prompt only 409s when
+ * the error text looks like a busy agent.
  */
 
 import { eq } from "drizzle-orm";
@@ -131,7 +131,7 @@ export function createRuntimeOps(deps: ControlDeps): RuntimeOps {
         throw new ControlError("bad_request", "Message is required", { status: 400 });
       }
       guard(ctx, id, "prompt");
-      // No message text in logs (docs/control-plane.md § Observability).
+      // Never log message text (prompt bodies stay out of logs).
       console.log(`[control] prompt session=${id} mode=${input.mode ?? "prompt"}`);
       const session = await host.ensure(id);
 

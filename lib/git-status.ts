@@ -189,15 +189,48 @@ export function sortChangedFiles(files: readonly GitChangedFile[]): GitChangedFi
   );
 }
 
+/** Worktree status character of a porcelain `XY` code. */
+function worktreeCode(code: string): string {
+  return code[1] ?? " ";
+}
+
+/**
+ * Fold two records for the same path. `nextCode` is the incoming entry's
+ * porcelain code: when it carries a worktree status the worktree kind wins,
+ * otherwise the existing row keeps its kind. `staged`/`unstaged` OR, and the
+ * first non-null counts win (the numstat map is keyed by path, so both records
+ * resolve the same numbers — summing would double-count).
+ */
+function mergeChangedFile(
+  prev: GitChangedFile,
+  next: GitChangedFile,
+  nextCode: string,
+): GitChangedFile {
+  return {
+    path: prev.path,
+    origPath: prev.origPath ?? next.origPath,
+    kind: worktreeCode(nextCode) !== " " ? next.kind : prev.kind,
+    staged: prev.staged || next.staged,
+    unstaged: prev.unstaged || next.unstaged,
+    added: prev.added ?? next.added,
+    removed: prev.removed ?? next.removed,
+  };
+}
+
 /**
  * Merge status records with numstat counts. Untracked files carry no diff
  * stats — `applyUntrackedLines` fills those in from disk afterwards.
+ *
+ * One path can appear twice: `git rm --cached f` leaves the file on disk, so
+ * porcelain emits `D  f` + `?? f`. The panel is a per-file list, and two rows
+ * would collide as React keys (and double-count the totals), so records fold
+ * by path with the worktree side winning the badge.
  */
 export function buildChangedFiles(
   entries: readonly GitStatusEntry[],
   numstat: ReadonlyMap<string, GitNumstat>,
 ): GitChangedFile[] {
-  const files: GitChangedFile[] = [];
+  const byPath = new Map<string, GitChangedFile>();
   for (const entry of entries) {
     const kind = changeKindFromCode(entry.code);
     const stats = numstat.get(entry.path);
@@ -218,7 +251,7 @@ export function buildChangedFiles(
       }
     }
 
-    files.push({
+    const file: GitChangedFile = {
       path: entry.path,
       origPath: entry.origPath,
       kind,
@@ -226,9 +259,11 @@ export function buildChangedFiles(
       unstaged: isUnstaged(entry.code, kind),
       added,
       removed,
-    });
+    };
+    const prev = byPath.get(entry.path);
+    byPath.set(entry.path, prev ? mergeChangedFile(prev, file, entry.code) : file);
   }
-  return sortChangedFiles(files);
+  return sortChangedFiles([...byPath.values()]);
 }
 
 /**

@@ -1,7 +1,7 @@
 /**
- * Projector spec — mirrors the PiEvent → SessionEvent mapping table in
- * docs/control-plane.md. Every emitted event is a snapshot; `applySessionEvent`
- * replaces fields so folding the same events twice is idempotent.
+ * Projector spec — the PiEvent → SessionEvent mapping contract. Every emitted
+ * event is a snapshot; `applySessionEvent` replaces fields so folding the same
+ * events twice is idempotent.
  */
 import { describe, expect, test } from "bun:test";
 import {

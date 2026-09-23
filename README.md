@@ -1,7 +1,8 @@
 # PiBot — Web GUI for the Pi coding agent
 
 Single-user Next.js + Tailwind CSS v4 webapp that drives **`pi --mode rpc`**
-(the Pi.dev agent's JSON-RPC mode) through a modern dark chat interface.
+(the Pi.dev agent's JSON-RPC mode) through a modern chat interface with dark
+and light themes.
 
 > **Security:** PiBot has no login and can run shell commands and edit files as
 your user. It binds to `127.0.0.1` by default and refuses unexpected hosts and

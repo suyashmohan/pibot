@@ -158,9 +158,11 @@ export async function readGitStatus(
     ? parseNumstatZ(diffRes.stdout)
     : new Map();
 
-  // Truncate first, then read line counts for the untracked files that are
-  // actually shown: a huge untracked tree must not cost thousands of reads.
-  const files = buildChangedFiles(entries, numstat).slice(0, limit);
+  // Truncate after folding duplicate path records, then read line counts for
+  // the untracked files that are actually shown: a huge untracked tree must
+  // not cost thousands of reads.
+  const all = buildChangedFiles(entries, numstat);
+  const files = all.slice(0, limit);
   const untrackedLines = new Map<string, number | null>();
   for (const file of files) {
     if (file.kind !== "untracked") continue;
@@ -177,7 +179,7 @@ export async function readGitStatus(
     files,
     added,
     removed,
-    truncated: entries.length > limit,
+    truncated: all.length > limit,
     error: null,
   };
 }

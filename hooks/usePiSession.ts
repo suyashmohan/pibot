@@ -34,6 +34,9 @@ export interface Toast {
   message: string;
 }
 
+/** How long a toast stays before auto-dismissing. */
+const TOAST_DISMISS_MS = 6000;
+
 /**
  * Coerce a duration from JSON to a displayable number. The server contract is
  * `number | null`, but a drifted schema (or an old build) can hand back the
@@ -67,11 +70,17 @@ export function usePiSession(sessionId: string | null) {
    */
   const [lastTurnMs, setLastTurnMs] = useState<number | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Auto-dismiss timers keyed by toast id, cancelled on dismiss / unmount. */
+  const toastTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const pushToast = useCallback((kind: Toast["kind"], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     setToasts((t) => [...t.slice(-4), { id, kind, message }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
+    const timer = setTimeout(() => {
+      toastTimers.current.delete(id);
+      setToasts((t) => t.filter((x) => x.id !== id));
+    }, TOAST_DISMISS_MS);
+    toastTimers.current.set(id, timer);
   }, []);
 
   const refreshMessages = useCallback(async () => {
@@ -335,7 +344,23 @@ export function usePiSession(sessionId: string | null) {
   }, [sessionId, refreshStats, refreshMessages, loadCommands, loadModels, pushToast]);
 
   const dismissToast = useCallback((id: string) => {
+    const timer = toastTimers.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimers.current.delete(id);
+    }
     setToasts((t) => t.filter((x) => x.id !== id));
+  }, []);
+
+  // A leaked auto-dismiss timer fires after unmount and calls setState with no
+  // DOM (SSR/test teardown), which is a `window is not defined` crash waiting
+  // for whatever code runs next. Cancel them all with the component.
+  useEffect(() => {
+    const timers = toastTimers.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
   }, []);
 
   const answerDialog = useCallback(
