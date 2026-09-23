@@ -51,7 +51,18 @@ the right-hand rail (Files/Git).*
   sessions and messages locally. Pi's own JSONL session files remain the
   source of truth; the DB is reconciled from `get_messages`.
 
-## Docker
+## Getting started
+
+Two ways to run PiBot — the [Docker](#docker) image (recommended) or
+[from source](#from-source), for development or when you can't use Docker.
+Both end up on `http://127.0.0.1:3000`. First, clone the repo:
+
+```bash
+git clone https://github.com/suyashmohan/pibot.git
+cd pibot
+```
+
+### Docker
 
 **This is the recommended way to run PiBot.** `pi` has full access to
 everything it can reach — no permission prompts, no built-in sandbox — and
@@ -135,22 +146,10 @@ Notes:
 - `tini` is the entrypoint (PID 1) to reap `pi` subprocesses and forward
   `SIGTERM` — don't add `--init` / `init: true` on top of it.
 
-## Stack
+### From source
 
-- **Bun only** — the server must run on the Bun runtime (`bun --bun`).
-  `bun:sqlite` cannot load under Node, so Node compatibility is intentionally
-  not maintained. Running under Node fails fast with a clear error.
-- Next.js (App Router) + React 19
-- Tailwind CSS v4 (`@import "tailwindcss"`)
-- Drizzle ORM + `bun:sqlite` (built into Bun — no native addon to compile;
-  DB file in `./data/pibot.db`, WAL mode)
-- `lucide-react` icons, `react-markdown` + `remark-gfm` message rendering
-- `highlight.js` (core + a curated language set) for code/markdown previews
-
-## Prerequisites
-
-> Running the [container](#docker) (recommended)? Skip this section — the
-> image bundles Bun and `pi` version-pinned already.
+Not using the container? Then you install the pieces yourself — the
+[Docker image](#docker) bundles Bun and a version-pinned `pi` already.
 
 - Bun 1.2+ (**required** — the app uses `bun:sqlite`, `Bun.spawn`,
   `Bun.Glob` and `Bun.$`, none of which exist under Node)
@@ -167,9 +166,7 @@ Notes:
   `GET /api/health` reports the detected version — a newer major pi may need
   PiBot updates.
 
-## Setup
-
-Running from source (PiBot development, or when you can't use Docker).
+Then install and run the dev server:
 
 ```bash
 cp .env.example .env   # adjust DATABASE_URL / PI_BINARY / PI_DEFAULT_CWD
@@ -202,6 +199,18 @@ bun run start
 SQLite needs no separate server. The default `./data/` directory ships with
 the repo; a custom `DATABASE_URL` path must already exist (the server
 refuses to start with a clear error otherwise).
+
+## Stack
+
+- **Bun only** — the server must run on the Bun runtime (`bun --bun`).
+  `bun:sqlite` cannot load under Node, so Node compatibility is intentionally
+  not maintained. Running under Node fails fast with a clear error.
+- Next.js (App Router) + React 19
+- Tailwind CSS v4 (`@import "tailwindcss"`)
+- Drizzle ORM + `bun:sqlite` (built into Bun — no native addon to compile;
+  DB file in `./data/pibot.db`, WAL mode)
+- `lucide-react` icons, `react-markdown` + `remark-gfm` message rendering
+- `highlight.js` (core + a curated language set) for code/markdown previews
 
 ## Checks
 
