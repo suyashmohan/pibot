@@ -1,5 +1,5 @@
-import { ensureClient } from "@/lib/pi/manager";
-import { fail, ok, toErrorMessage } from "@/lib/api";
+import { control } from "@/lib/control";
+import { mapControlError, ok } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,9 +16,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(_req: Request, { params }: Params) {
   const { id } = await params;
   try {
-    const client = await ensureClient(id);
-    return ok({ started: true, live: client.alive });
+    return ok(await control.sessions.start(id));
   } catch (err) {
-    return fail(toErrorMessage(err), 500);
+    return mapControlError(err);
   }
 }

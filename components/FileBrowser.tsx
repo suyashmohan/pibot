@@ -44,7 +44,7 @@ function IconButton({
       disabled={disabled}
       className={cn(
         "rounded-lg p-1.5 transition disabled:opacity-30",
-        active ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200",
+        active ? "bg-raised text-fg" : "text-fg-subtle hover:bg-raised hover:text-fg",
         className,
       )}
     >
@@ -147,14 +147,14 @@ export function FileBrowser({
     <aside
       aria-label="File browser"
       className={cn(
-        "flex flex-col bg-zinc-950",
+        "flex flex-col bg-app",
         mode === "full"
           ? "fixed inset-0 z-50"
           : // Phones: full-screen takeover under the drawer/scrim. Desktop: docked rail.
-            "fixed inset-0 z-20 md:static md:z-auto md:w-[300px] md:shrink-0 md:border-l md:border-zinc-800/80 lg:w-[340px]",
+            "fixed inset-0 z-20 md:static md:z-auto md:w-[300px] md:shrink-0 md:border-l md:border-line/80 lg:w-[340px]",
       )}
     >
-      <div className="flex shrink-0 items-center gap-1 border-b border-zinc-800/80 bg-zinc-950 px-2 py-1.5">
+      <div className="flex shrink-0 items-center gap-1 border-b border-line/80 bg-app px-2 py-1.5">
         <IconButton
           title="Parent folder"
           onClick={() => {
@@ -166,7 +166,7 @@ export function FileBrowser({
         >
           <ChevronUp size={14} />
         </IconButton>
-        <FolderTree size={13} className="shrink-0 text-zinc-500" />
+        <FolderTree size={13} className="shrink-0 text-fg-subtle" />
         <nav className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden text-[11.5px]">
           <button
             type="button"
@@ -176,15 +176,15 @@ export function FileBrowser({
             }}
             title={cwd}
             className={cn(
-              "shrink-0 rounded px-1 py-0.5 transition hover:bg-zinc-800",
-              dir === "" ? "text-zinc-200" : "text-zinc-400",
+              "shrink-0 rounded px-1 py-0.5 transition hover:bg-raised",
+              dir === "" ? "text-fg" : "text-fg-muted",
             )}
           >
             {baseName(cwd)}
           </button>
           {crumbs.map((c, i) => (
             <span key={c.path} className="flex min-w-0 items-center gap-0.5">
-              <span className="shrink-0 text-zinc-700">/</span>
+              <span className="shrink-0 text-fg-faint">/</span>
               <button
                 type="button"
                 onClick={() => {
@@ -192,8 +192,8 @@ export function FileBrowser({
                   setSelected(null);
                 }}
                 className={cn(
-                  "truncate rounded px-1 py-0.5 transition hover:bg-zinc-800",
-                  i === crumbs.length - 1 ? "text-zinc-200" : "text-zinc-400",
+                  "truncate rounded px-1 py-0.5 transition hover:bg-raised",
+                  i === crumbs.length - 1 ? "text-fg" : "text-fg-muted",
                 )}
               >
                 {c.name}
@@ -264,22 +264,22 @@ export function FileBrowser({
             hasNext={index >= 0 && index < fileEntries.length - 1}
           />
         ) : listing.loading && listing.entries.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-[12px] text-zinc-500">
+          <div className="flex items-center justify-center gap-2 py-16 text-[12px] text-fg-subtle">
             <Loader2 size={14} className="animate-spin" /> Loading…
           </div>
         ) : listing.error ? (
           <div className="px-4 py-12 text-center">
-            <p className="text-[12px] text-red-300">{listing.error}</p>
+            <p className="text-[12px] text-danger-soft">{listing.error}</p>
             <button
               type="button"
               onClick={listing.reload}
-              className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-[11.5px] text-zinc-300 transition hover:bg-zinc-800"
+              className="mt-3 rounded-lg border border-line-strong px-3 py-1.5 text-[11.5px] text-fg-secondary transition hover:bg-raised"
             >
               Retry
             </button>
           </div>
         ) : listing.entries.length === 0 ? (
-          <p className="px-4 py-12 text-center text-[12px] text-zinc-600">This folder is empty.</p>
+          <p className="px-4 py-12 text-center text-[12px] text-fg-faint">This folder is empty.</p>
         ) : (
           <>
             <FileEntries
@@ -294,7 +294,7 @@ export function FileBrowser({
               }}
             />
             {listing.truncated && (
-              <p className="px-3 pb-3 pt-1 text-center text-[10.5px] text-amber-400/80">
+              <p className="px-3 pb-3 pt-1 text-center text-[10.5px] text-warning/80">
                 Showing the first {listing.entries.length} entries.
               </p>
             )}

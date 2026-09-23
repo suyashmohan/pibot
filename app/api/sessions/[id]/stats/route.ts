@@ -1,5 +1,5 @@
-import { getLiveClient } from "@/lib/pi/manager";
-import { fail, ok, toErrorMessage } from "@/lib/api";
+import { control } from "@/lib/control";
+import { mapControlError, ok } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,21 +14,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
   try {
-    const client = getLiveClient(id);
-    if (!client) return ok({ state: null, stats: null, live: false });
-
-    const [stateRes, statsRes] = await Promise.all([
-      client.send({ type: "get_state" }),
-      client.send({ type: "get_session_stats" }),
-    ]);
-    return ok({
-      state: stateRes.success ? stateRes.data : null,
-      stats: statsRes.success ? statsRes.data : null,
-      live: true,
-      stateError: stateRes.success ? null : String(stateRes.error ?? "get_state failed"),
-      statsError: statsRes.success ? null : String(statsRes.error ?? "stats failed"),
-    });
+    return ok(await control.sessions.getStats(id));
   } catch (err) {
-    return fail(toErrorMessage(err), 500);
+    return mapControlError(err);
   }
 }

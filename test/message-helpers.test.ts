@@ -5,7 +5,7 @@ import {
   messagePreview,
   streamingAssistantMessage,
   type AgentMessage,
-} from "@/lib/pi/types";
+} from "@/lib/control/types";
 
 describe("streamingAssistantMessage", () => {
   test("carries a stable synthetic id across deltas", () => {

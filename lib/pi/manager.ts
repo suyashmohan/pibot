@@ -5,7 +5,8 @@ import { dirExists } from "../files";
 import { messages as messagesTable, sessions as sessionsTable } from "../db/schema";
 import { piIdleTimeoutMs, piMaxProcesses } from "./env";
 import { PiRpcClient } from "./rpc-client";
-import type { AgentMessage, PiEvent, ProcessLimits, RunningProcessInfo, RpcResponse } from "./types";
+import type { PiEvent, RpcResponse } from "./types";
+import type { AgentMessage, ProcessLimits, RunningProcessInfo } from "../control/types";
 
 interface ManagedEntry {
   webId: string;

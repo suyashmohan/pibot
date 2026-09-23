@@ -12,6 +12,13 @@
  * - FAKE_PI_SEED_MESSAGES: JSON array prepended to the message list
  * - FAKE_PI_SLOW_TURN_MS: holds the turn open this long (ms) between the
  *   streaming events and message_end/settled, so tests observe streaming
+ * - FAKE_PI_PROMPT_ERROR: makes `prompt` fail with this error text
+ *   (does not burst a turn)
+ * - FAKE_PI_STEER_ERROR: makes `steer` / `follow_up` fail with this error
+ *
+ * `clone` / `switch_session` / `new_session` move the reported session
+ * file/id so the control-plane clone dance is observable (a naive clone test
+ * against a stub that ignores the command would be false-green).
  *
  * Special command `{"type":"never_reply"}` is swallowed for timeout tests.
  */
@@ -21,9 +28,12 @@ interface Msg {
   [k: string]: unknown;
 }
 
-const sessionId = "fake-pi-session";
-const sessionFile = process.env.FAKE_PI_SESSION_FILE ?? "/tmp/fake-pi-session.jsonl";
+const baseSessionId = "fake-pi-session";
+const baseSessionFile = process.env.FAKE_PI_SESSION_FILE ?? "/tmp/fake-pi-session.jsonl";
 const EOL = process.env.FAKE_PI_CRLF === "1" ? "\r\n" : "\n";
+
+let sessionId = baseSessionId;
+let sessionFile = baseSessionFile;
 
 let thinkingLevel = "medium";
 let sessionName = "fake";
@@ -56,6 +66,85 @@ function respond(
   });
 }
 
+function responsePayload(
+  id: unknown,
+  command: string,
+  success = true,
+  data?: unknown,
+  error?: string,
+): Record<string, unknown> {
+  return {
+    id,
+    type: "response",
+    command,
+    success,
+    ...(data !== undefined ? { data } : {}),
+    ...(error ? { error } : {}),
+  };
+}
+
+/** One write for several lines — the client reads response+events in one chunk. */
+function sendAll(objs: unknown[]): void {
+  process.stdout.write(objs.map((o) => JSON.stringify(o) + EOL).join(""));
+}
+
+/**
+ * Emit the RPC response and one streaming turn. The response and the head of
+ * the turn go out in a **single write** (so a fast turn settles in the same
+ * stdout chunk the client parses synchronously — the listen-before-send
+ * fan-out test depends on that). With FAKE_PI_SLOW_TURN_MS the tail is held
+ * back so tests can observe an open turn.
+ */
+function burstWithResponse(id: unknown, command: string, text: string): void {
+  const reply = `echo: ${text}`;
+  const mid = Math.ceil(reply.length / 2);
+  const head: unknown[] = [
+    { type: "agent_start" },
+    {
+      type: "message_start",
+      message: { role: "assistant", content: [], timestamp: Date.now() },
+    },
+    {
+      type: "message_update",
+      usage: {},
+      assistantMessageEvent: { type: "text_start", contentIndex: 0 },
+    },
+    ...([reply.slice(0, mid), reply.slice(mid)].map((part) => ({
+      type: "message_update",
+      usage: {},
+      assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: part },
+    }))),
+    {
+      type: "message_update",
+      usage: {},
+      assistantMessageEvent: { type: "text_end", contentIndex: 0, content: reply },
+    },
+  ];
+  const amsg: Msg = {
+    role: "assistant",
+    content: [{ type: "text", text: reply }],
+    timestamp: Date.now(),
+    stopReason: "stop",
+  };
+  const tail: unknown[] = [
+    { type: "message_end", message: amsg },
+    { type: "turn_end", message: amsg, toolResults: [] },
+    { type: "agent_end", messages: [amsg], willRetry: false },
+    { type: "agent_settled" },
+  ];
+  const holdMs = Number(process.env.FAKE_PI_SLOW_TURN_MS ?? "0");
+  if (Number.isFinite(holdMs) && holdMs > 0) {
+    sendAll([responsePayload(id, command), ...head]);
+    void Bun.sleep(holdMs).then(() => {
+      messages.push(amsg);
+      sendAll(tail);
+    });
+    return;
+  }
+  messages.push(amsg);
+  sendAll([responsePayload(id, command), ...head, ...tail]);
+}
+
 function handle(cmd: Record<string, unknown>): void {
   const { id, type } = cmd;
   switch (type) {
@@ -79,58 +168,45 @@ function handle(cmd: Record<string, unknown>): void {
       respond(id, String(type), true, { messages });
       break;
     case "prompt": {
+      const promptError = process.env.FAKE_PI_PROMPT_ERROR;
+      if (promptError) {
+        respond(id, String(type), false, undefined, promptError);
+        break;
+      }
       const text = String(cmd.message ?? "");
       messages.push({ role: "user", content: text, timestamp: Date.now() });
-      respond(id, String(type), true);
-      // Slow-turn hold is honored inside the burst (see burstAsync).
-      burst(text);
+      // Response + turn head go out in one write (see burstWithResponse).
+      burstWithResponse(id, String(type), text);
       break;
     }
-
-function burst(text: string): void {
-  void burstAsync(text);
-}
-
-async function burstAsync(text: string): Promise<void> {
-  const reply = `echo: ${text}`;
-  send({ type: "agent_start" });
-      send({
-        type: "message_start",
-        message: { role: "assistant", content: [], timestamp: Date.now() },
-      });
-      send({
-        type: "message_update",
-        usage: {},
-        assistantMessageEvent: { type: "text_start", contentIndex: 0 },
-      });
-      const mid = Math.ceil(reply.length / 2);
-      for (const part of [reply.slice(0, mid), reply.slice(mid)]) {
-        send({
-          type: "message_update",
-          usage: {},
-          assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: part },
-        });
+    case "steer":
+    case "follow_up": {
+      const steerError = process.env.FAKE_PI_STEER_ERROR;
+      if (steerError) {
+        respond(id, String(type), false, undefined, steerError);
+        break;
       }
-      send({
-        type: "message_update",
-        usage: {},
-        assistantMessageEvent: { type: "text_end", contentIndex: 0, content: reply },
-      });
-      // Slow-turn mode holds the turn open so tests observe streaming state.
-      const holdMs = Number(process.env.FAKE_PI_SLOW_TURN_MS ?? "0");
-      if (Number.isFinite(holdMs) && holdMs > 0) await Bun.sleep(holdMs);
-      const amsg: Msg = {
-        role: "assistant",
-        content: [{ type: "text", text: reply }],
-        timestamp: Date.now(),
-        stopReason: "stop",
-      };
-      messages.push(amsg);
-      send({ type: "message_end", message: amsg });
-      send({ type: "turn_end", message: amsg, toolResults: [] });
-      send({ type: "agent_end", messages: [amsg], willRetry: false });
-      send({ type: "agent_settled" });
-}
+      const text = String(cmd.message ?? "");
+      messages.push({ role: "user", content: text, timestamp: Date.now() });
+      burstWithResponse(id, String(type), text);
+      break;
+    }
+    case "clone":
+      sessionFile = `${baseSessionFile}.clone-${Date.now()}`;
+      sessionId = `${baseSessionId}-clone`;
+      respond(id, String(type), true, { sessionFile, sessionId });
+      break;
+    case "switch_session":
+      sessionFile = String(cmd.sessionPath ?? sessionFile);
+      sessionId = `${baseSessionId}-switched`;
+      respond(id, String(type), true, { sessionFile, sessionId });
+      break;
+    case "new_session":
+      sessionFile = `${baseSessionFile}.new-${Date.now()}`;
+      sessionId = `${baseSessionId}-new`;
+      respond(id, String(type), true, { sessionFile, sessionId });
+      break;
+
     case "get_available_models":
       respond(id, String(type), true, {
         models: [{ id: "fake-model", provider: "fake", name: "Fake Model" }],

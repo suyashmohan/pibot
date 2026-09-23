@@ -1,6 +1,6 @@
 "use client";
 
-import type { AgentMessage } from "@/lib/pi/types";
+import type { AgentMessage } from "@/lib/control/types";
 import { MessageItem } from "./MessageItem";
 
 /**

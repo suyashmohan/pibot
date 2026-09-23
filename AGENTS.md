@@ -22,9 +22,16 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
 
 ## Layout
 
-- `lib/pi/rpc-client.ts` — JSONL client on `Bun.spawn`. Strict framing:
-  split stdout on LF only, strip one trailing CR, `id` → response promise.
-- `lib/pi/manager.ts` — one `pi` process per web session, SSE fan-out,
+**Three layers, one direction: `lib/pi` (transport) → `lib/control`
+(domain) → `app/api` + `lib/client` (adapters).**
+
+- `lib/pi/` — transport. `rpc-client.ts` is the JSONL client on `Bun.spawn`.
+  `host.ts` is the **only** module that writes pi JSONL command names
+  (`prompt`, `abort`, `fork`, `sendRaw` for the `/control` catch-all); control
+  talks domain methods to `AgentHost` / `AgentSession`. `types.ts` is
+  transport-only (`RpcCommand`, `RpcResponse`, `PiEvent`); domain DTOs live in
+  `lib/control/types.ts`.
+- `lib/pi/manager.ts` — one `pi` process per web session, raw SSE fan-out,
   `ensureClient` dedupes concurrent spawns via in-flight map. Spawning is
   lazy on **user intent**: read paths (`GET /api/sessions/[id]`, `/messages`,
   `/stats`, the SSE `/stream`, read-only `/control` actions) serve cache /
@@ -33,7 +40,54 @@ default** (`PIBOT_HOST=0.0.0.0` to opt into LAN).
   (`sweepIdleClients`, 60s sweeper) and concurrency is capped
   (`enforceProcessCap`, LRU idle eviction, busy sessions spared).
   `entry.client` is nullable — reap keeps the entry and emitter so respawn
-  is transparent.
+  is transparent. **Known leaks stay locked**: `GET /model`, `GET /tree` and
+  `GET /api/models` do spawn on purpose (`test/lazy-spawn.test.ts`).
+- `lib/control/` — the control plane. `plane.ts` (`createControlPlane()` +
+  the `control` singleton) exposes `sessions` / `processes` / `projects` /
+  `health`. Services throw `ControlError` with an **explicit** `status`
+  (missing session is 404 on read paths and 500 on `ensure` paths — do not
+  "fix" that). `subscribeRaw` is raw `PiEvent` fan-out (SSE only);
+  `subscribe` projects into snapshot `SessionEvent`s via `projector.ts`
+  (one projector per subscriber; `applySessionEvent` replaces fields, never
+  concatenates). `policy.ts` owns supervisor self-prompt/cycle checks and the
+  per-plane fan-out counter. **Server-only barrel** — client code must import
+  `@/lib/control/types` / `@/lib/control/projector`, never `@/lib/control`
+  (it would bundle `bun:sqlite`).
+- `lib/client/` — isomorphic UI SDK (`PiBotClient`, `pibot` singleton).
+  Every call the React app makes goes through it. `http.ts` resolves `fetch`
+  lazily and defaults to `credentials: "include"`; `stream.ts` owns the
+  `EventSource` and registers each name in `PI_SSE_EVENT_TYPES`
+  (`onmessage` never fires for named SSE events). No `bun:*`, no
+  `next/server`, no `@/lib/db` in here.
+- Import fences are enforced twice: core `no-restricted-imports` globs in
+  `eslint.config.mjs`, and `test/import-fences.test.ts` (greps the server
+  barrel, `Bun.spawn`, `next/server`, hooks re-assembling `text_delta`, and
+  hard-coded `/api/` URLs in chrome — `rawFileUrl` is the one exception).
+  `lib/pi/process-state.ts` is a deprecated re-export of the pure helper in
+  `lib/control/types.ts`.
+- **Supervisor-agent doors (future MCP; do not add a third):** either
+  (a) stdio **in the same OS process** as `bun run start`, importing
+  `control` (bypasses Host/CSRF because it is already root-equivalent), or
+  (b) a **separate** process that is a `PiBotClient` against
+  `http://127.0.0.1` with `Cookie: pibot_token=...`. Never import
+  `createControlPlane`/manager in a second OS process (double spawn), never
+  add an internal MCP HTTP route or a new listener. Policy recursion/fan-out
+  lives in `lib/control/policy.ts` (`CallContext` on mutating methods;
+  UI ctx is allow-all).
+- **Theming** — `lib/themes.ts` (isomorphic registry: `BUILT_IN_THEMES`,
+  `registerTheme`, storage + boot script) plus semantic tokens in
+  `app/globals.css` (`:root` dark, `[data-theme="light"]` light) mapped to
+  Tailwind via `@theme inline`. Components use **only** token utilities
+  (`bg-app`, `bg-panel`, `text-fg`, `border-line`, …) — never `zinc-*`/
+  `red-*` palette classes or hex (enforced by `test/theme.test.ts`). The
+  active theme lives on `<html data-theme>`: the inline boot script in
+  `app/layout.tsx` applies the persisted value before paint, and
+  `ThemeProvider` (`components/ThemeProvider.tsx`) owns it after hydration
+  (never render `data-theme` from React). `<html>` carries
+  `suppressHydrationWarning` for exactly that attribute; everything below it
+  hydrates strictly. New themes: a new `[data-theme="id"]` block (built-ins)
+  or `registerTheme({ id, label, appearance, preview, tokens })` with
+  validated `--pibot-*` overrides.
 - `lib/db/` — drizzle + `bun:sqlite`. **`getDb()` is async** — always
   `await` it. Pi's JSONL files are source of truth; sqlite is a cache
   synced from `get_messages`.

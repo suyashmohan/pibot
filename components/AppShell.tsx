@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bot, Menu, PanelLeft, TriangleAlert, Activity, FolderTree } from "lucide-react";
-import { api, type SessionListItem } from "@/lib/client-api";
-import type { ProcessLimits, RunningProcessInfo } from "@/lib/pi/types";
+import { pibot } from "@/lib/client";
+import type { ProcessLimits, RunningProcessInfo, SessionListItem } from "@/lib/control/types";
 import { MOBILE_QUERY, nextSidebarUser } from "@/lib/layout";
-import { sessionProcessStates, type SessionProcessState } from "@/lib/pi/process-state";
+import { sessionProcessStates, type SessionProcessState } from "@/lib/control/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useProjects } from "@/hooks/useProjects";
 import { cn } from "@/lib/utils";
@@ -14,8 +14,18 @@ import { FileBrowser, type FilePanelMode } from "./FileBrowser";
 import { NewSessionModal } from "./NewSessionModal";
 import { ProcessPanel, SERVER_PROCESS_KEY } from "./ProcessPanel";
 import { Sidebar } from "./Sidebar";
+import { ThemeProvider } from "./ThemeProvider";
+import { ThemeMenu } from "./ThemeMenu";
 
 export function AppShell() {
+  return (
+    <ThemeProvider>
+      <AppShellContent />
+    </ThemeProvider>
+  );
+}
+
+function AppShellContent() {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [newModal, setNewModal] = useState<{ cwd: string } | null>(null);
@@ -45,13 +55,9 @@ export function AppShell() {
   const loadProcesses = useCallback(async (showSpinner = false) => {
     if (showSpinner) setProcLoading(true);
     try {
-      const r = await api<{ processes: RunningProcessInfo[]; limits: ProcessLimits }>(
-        "/api/processes",
-      );
-      if (r.ok && r.data) {
-        setProcesses(r.data.processes ?? []);
-        if (r.data.limits) setProcessLimits(r.data.limits);
-      }
+      const data = await pibot.processes.list();
+      setProcesses(data.processes ?? []);
+      if (data.limits) setProcessLimits(data.limits);
     } catch {
       /* ignore transient */
     } finally {
@@ -82,10 +88,7 @@ export function AppShell() {
       const key = sessionId ?? SERVER_PROCESS_KEY;
       setProcBusyKey(key);
       try {
-        await api("/api/processes/stop", {
-          method: "POST",
-          body: JSON.stringify({ id: sessionId, force }),
-        });
+        await pibot.processes.stop(sessionId, { force });
         await loadProcesses();
       } finally {
         setProcBusyKey(null);
@@ -101,12 +104,10 @@ export function AppShell() {
 
   const refresh = useCallback(async () => {
     try {
-      const r = await api<{ sessions: SessionListItem[] }>("/api/sessions");
-      if (r.ok && r.data) {
-        setSessions(r.data.sessions);
-        if (!activeId && r.data.sessions.length > 0) {
-          setActiveId(r.data.sessions[0].id);
-        }
+      const list = await pibot.sessions.list();
+      setSessions(list);
+      if (!activeId && list.length > 0) {
+        setActiveId(list[0].id);
       }
     } catch {
       /* ignore */
@@ -115,14 +116,13 @@ export function AppShell() {
 
   useEffect(() => {
     void refresh();
-    void api<{ defaultCwd: string; piVersion: string | null; piAvailable: boolean }>("/api/health").then(
-      (r) => {
-        if (r.ok && r.data) {
-          setDefaultCwd(r.data.defaultCwd);
-          setPiInfo({ piVersion: r.data.piVersion, piAvailable: r.data.piAvailable });
-        }
-      },
-    );
+    void pibot.health
+      .get()
+      .then((health) => {
+        setDefaultCwd(health.defaultCwd);
+        setPiInfo({ piVersion: health.piVersion, piAvailable: health.piAvailable });
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -148,7 +148,11 @@ export function AppShell() {
 
   const remove = async (id: string) => {
     if (!confirm("Delete this session? (pi's own session file is kept on disk)")) return;
-    await api(`/api/sessions/${id}`, { method: "DELETE" });
+    try {
+      await pibot.sessions.delete(id);
+    } catch {
+      /* ignore */
+    }
     setSessions((s) => s.filter((x) => x.id !== id));
     void refreshProjects();
     if (activeId === id) {
@@ -158,10 +162,10 @@ export function AppShell() {
   };
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-zinc-950 text-zinc-100">
+    <div className="flex h-dvh overflow-hidden bg-app text-fg">
       {sidebarOpen === true && isMobile && (
         <div
-          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[1px] md:hidden"
+          className="fixed inset-0 z-30 bg-overlay/60 backdrop-blur-[1px] md:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden
         />
@@ -191,10 +195,10 @@ export function AppShell() {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Slim top strip */}
-        <div className="flex shrink-0 items-center gap-2 border-b border-zinc-800/60 bg-zinc-950 px-3 py-1.5">
+        <div className="flex shrink-0 items-center gap-2 border-b border-line/60 bg-app px-3 py-1.5">
           <button
             onClick={() => setSidebarOpen((prev) => nextSidebarUser(prev, isMobile))}
-            className="rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="rounded-lg p-1.5 text-fg-subtle transition hover:bg-raised hover:text-fg"
             title="Toggle sidebar"
           >
             {/* CSS-owned so SSR and the first client render agree. */}
@@ -202,16 +206,16 @@ export function AppShell() {
             <PanelLeft size={15} className="hidden md:block" />
           </button>
           <span className="flex items-center gap-1.5 text-[12px] font-semibold tracking-tight">
-            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-zinc-100 text-zinc-950">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary text-primary-fg">
               <Bot size={13} />
             </span>
             PiBot
           </span>
-          <span className="hidden text-[11px] text-zinc-600 sm:inline">
+          <span className="hidden text-[11px] text-fg-faint sm:inline">
             Pi agent console · {piInfo?.piVersion ?? "pi --mode rpc"}
           </span>
           {piInfo && !piInfo.piAvailable && (
-            <span className="flex items-center gap-1 rounded-md bg-red-500/10 px-2 py-0.5 text-[11px] text-red-300">
+            <span className="flex items-center gap-1 rounded-md bg-danger/10 px-2 py-0.5 text-[11px] text-danger-soft">
               <TriangleAlert size={11} /> pi binary not found — set PI_BINARY
             </span>
           )}
@@ -223,8 +227,8 @@ export function AppShell() {
             className={cn(
               "ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] transition disabled:opacity-40",
               filesMode === "closed"
-                ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                : "bg-zinc-800 text-zinc-100",
+                ? "text-fg-muted hover:bg-raised hover:text-fg"
+                : "bg-raised text-fg",
             )}
           >
             <FolderTree size={13} />
@@ -237,16 +241,17 @@ export function AppShell() {
               void loadProcesses(true);
             }}
             title="Running pi processes"
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] text-fg-muted transition hover:bg-raised hover:text-fg"
           >
             <Activity size={13} />
             <span className="hidden sm:inline">Processes</span>
             {processes.length > 0 && (
-              <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">
+              <span className="rounded-full bg-raised px-1.5 py-0.5 font-mono text-[10px] text-fg-secondary">
                 {processes.length}
               </span>
             )}
           </button>
+          <ThemeMenu />
         </div>
 
         {activeId ? (
@@ -267,14 +272,14 @@ export function AppShell() {
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900">
-                <Bot size={20} className="text-zinc-300" />
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-line bg-panel">
+                <Bot size={20} className="text-fg-secondary" />
               </div>
               <h2 className="text-[15px] font-semibold">No session selected</h2>
-              <p className="mt-1 text-[12.5px] text-zinc-500">Create one to start chatting with your Pi agent.</p>
+              <p className="mt-1 text-[12.5px] text-fg-subtle">Create one to start chatting with your Pi agent.</p>
               <button
                 onClick={() => setNewModal({ cwd: defaultCwd })}
-                className="mt-4 rounded-xl bg-zinc-100 px-4 py-2 text-[13px] font-medium text-zinc-950 hover:bg-white"
+                className="mt-4 rounded-xl bg-primary px-4 py-2 text-[13px] font-medium text-primary-fg hover:bg-primary-hover"
               >
                 New session
               </button>

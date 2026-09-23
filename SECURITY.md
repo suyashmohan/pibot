@@ -22,6 +22,22 @@ Do **not** expose PiBot to the public internet. If you need remote access,
 put it behind an authenticated reverse proxy, a VPN, or a tunnel such as
 Tailscale, and set `PIBOT_TOKEN`.
 
+## Agent tooling (future MCP)
+
+There is no MCP server yet. If one is added it must use exactly one of these
+two doors:
+
+1. **stdio, in the same OS process** as `bun run start`, importing the
+   in-process control plane. The caller is already on the machine, so it is
+   root-equivalent and bypasses Host/CSRF — it must never be exposed over TCP.
+2. **A separate process using the loopback HTTP API** with
+   `Cookie: pibot_token=...` (the same `PIBOT_TOKEN` boundary as a browser).
+
+An internal MCP HTTP route, a new listener, or a second process manager is
+forbidden. The same caveats as the UI apply to agent tools: `files.*` and the
+folder picker list/read the whole filesystem, and `bash` is a shell.
+
+
 ## Supported versions
 
 Only the latest commit on `main` is supported. This is a 0.x project; breaking

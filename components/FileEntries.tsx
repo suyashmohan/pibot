@@ -11,13 +11,13 @@ import {
 } from "@/lib/file-browser";
 
 const KIND_COLORS: Record<FileKind, string> = {
-  dir: "text-zinc-400",
-  image: "text-emerald-400/80",
-  markdown: "text-violet-400/80",
-  code: "text-sky-400/80",
-  text: "text-zinc-400",
-  binary: "text-amber-400/80",
-  unknown: "text-zinc-500",
+  dir: "text-fg-muted",
+  image: "text-success/80",
+  markdown: "text-accent-2/80",
+  code: "text-info/80",
+  text: "text-fg-muted",
+  binary: "text-warning/80",
+  unknown: "text-fg-subtle",
 };
 
 function KindIcon({ kind, size = 14 }: { kind: FileKind; size?: number }) {
@@ -77,11 +77,11 @@ export function FileEntries({
             className={cn(
               "group flex flex-col overflow-hidden rounded-xl border text-left transition",
               selectedPath === entry.path
-                ? "border-zinc-600 bg-zinc-900"
-                : "border-zinc-800/80 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900",
+                ? "border-line-focus bg-panel"
+                : "border-line/80 bg-panel/40 hover:border-line-strong hover:bg-panel",
             )}
           >
-            <span className="flex h-24 items-center justify-center overflow-hidden bg-zinc-950/70">
+            <span className="flex h-24 items-center justify-center overflow-hidden bg-app/70">
               {entry.kind === "image" && entry.mime ? (
                 <img
                   src={rawFileUrl(sessionId, entry.path)}
@@ -95,8 +95,8 @@ export function FileEntries({
               )}
             </span>
             <span className="min-w-0 px-2 py-1.5">
-              <span className="block truncate text-[11.5px] text-zinc-300">{entry.name}</span>
-              <span className="font-mono text-[10px] text-zinc-600">
+              <span className="block truncate text-[11.5px] text-fg-secondary">{entry.name}</span>
+              <span className="font-mono text-[10px] text-fg-faint">
                 {entry.type === "dir" ? "folder" : formatBytes(entry.size)}
               </span>
             </span>
@@ -118,23 +118,23 @@ export function FileEntries({
           title={entry.path}
           className={cn(
             "group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition",
-            selectedPath === entry.path ? "bg-zinc-800/80" : "hover:bg-zinc-800/60",
+            selectedPath === entry.path ? "bg-raised/80" : "hover:bg-raised/60",
           )}
         >
           <KindIcon kind={entry.kind} />
-          <span className="min-w-0 flex-1 truncate text-[12.5px] text-zinc-200">{entry.name}</span>
+          <span className="min-w-0 flex-1 truncate text-[12.5px] text-fg">{entry.name}</span>
           {entry.type === "file" && (
             <>
-              <span className="hidden shrink-0 font-mono text-[10px] text-zinc-600 sm:inline">
+              <span className="hidden shrink-0 font-mono text-[10px] text-fg-faint sm:inline">
                 {entry.mtimeMs ? timeAgo(entry.mtimeMs) : ""}
               </span>
-              <span className="w-14 shrink-0 text-right font-mono text-[10.5px] text-zinc-600">
+              <span className="w-14 shrink-0 text-right font-mono text-[10.5px] text-fg-faint">
                 {formatBytes(entry.size)}
               </span>
             </>
           )}
           {entry.type === "dir" && (
-            <ChevronRight size={12} className="shrink-0 text-zinc-700 group-hover:text-zinc-400" />
+            <ChevronRight size={12} className="shrink-0 text-fg-faint group-hover:text-fg-muted" />
           )}
         </button>
       ))}

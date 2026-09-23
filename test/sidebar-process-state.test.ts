@@ -11,8 +11,8 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { Sidebar } from "@/components/Sidebar";
 import type { ProjectListItem, SessionListItem } from "@/lib/client-api";
-import { sessionProcessStates } from "@/lib/pi/process-state";
-import type { RunningProcessInfo } from "@/lib/pi/types";
+import { sessionProcessStates } from "@/lib/control/types";
+import type { RunningProcessInfo } from "@/lib/control/types";
 
 const now = Date.now();
 

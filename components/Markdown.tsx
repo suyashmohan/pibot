@@ -16,7 +16,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
   return (
     <div className="group/code relative">
       {language && (
-        <span className="absolute right-2 top-2 rounded-md bg-zinc-800/80 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-zinc-400">
+        <span className="absolute right-2 top-2 rounded-md bg-raised/80 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-fg-muted">
           {language}
         </span>
       )}
@@ -27,7 +27,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
             setTimeout(() => setCopied(false), 1500);
           });
         }}
-        className="absolute bottom-2 right-2 rounded-md bg-zinc-800/80 p-1.5 text-zinc-400 opacity-0 transition group-hover/code:opacity-100 hover:bg-zinc-700 hover:text-zinc-200"
+        className="absolute bottom-2 right-2 rounded-md bg-raised/80 p-1.5 text-fg-muted opacity-0 transition group-hover/code:opacity-100 hover:bg-active hover:text-fg"
         title="Copy code"
       >
         {copied ? <Check size={13} /> : <Copy size={13} />}

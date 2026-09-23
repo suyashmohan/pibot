@@ -53,14 +53,14 @@ function CodeView({
       {!wrap && (
         <div
           aria-hidden
-          className="sticky left-0 z-10 shrink-0 select-none border-r border-zinc-800/60 bg-zinc-950 px-2 py-3 text-right font-mono text-[12px] leading-[18px] text-zinc-700"
+          className="sticky left-0 z-10 shrink-0 select-none border-r border-line/60 bg-app px-2 py-3 text-right font-mono text-[12px] leading-[18px] text-fg-faint"
         >
           <div className="whitespace-pre">{numbers}</div>
         </div>
       )}
       <pre
         className={cn(
-          "code-pre min-w-0 flex-1 px-3 py-3 font-mono text-[12px] leading-[18px] text-zinc-300",
+          "code-pre min-w-0 flex-1 px-3 py-3 font-mono text-[12px] leading-[18px] text-fg-secondary",
           wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre",
         )}
       >
@@ -85,7 +85,7 @@ function DownloadAction({
       download
       title="Download"
       className={cn(
-        "flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-[11.5px] text-zinc-300 transition hover:bg-zinc-800",
+        "flex items-center gap-1.5 rounded-lg border border-line-strong px-2.5 py-1.5 text-[11.5px] text-fg-secondary transition hover:bg-raised",
         className,
       )}
     >
@@ -157,18 +157,18 @@ export function FilePreview({
   return (
     <div className="flex min-h-full flex-col">
       {/* Toolbar */}
-      <div className="sticky top-0 z-20 flex shrink-0 items-center gap-1.5 border-b border-zinc-800/70 bg-zinc-950/95 px-2 py-1.5 backdrop-blur">
+      <div className="sticky top-0 z-20 flex shrink-0 items-center gap-1.5 border-b border-line/70 bg-app/95 px-2 py-1.5 backdrop-blur">
         <button
           type="button"
           onClick={onBack}
           title="Back to file list"
-          className="rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+          className="rounded-lg p-1.5 text-fg-subtle transition hover:bg-raised hover:text-fg"
         >
           <ArrowLeft size={14} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12px] font-medium text-zinc-200">{entry.name}</div>
-          <div className="truncate font-mono text-[10px] text-zinc-600">
+          <div className="truncate text-[12px] font-medium text-fg">{entry.name}</div>
+          <div className="truncate font-mono text-[10px] text-fg-faint">
             {entry.path} · {formatBytes(size)}
             {preview?.mtimeMs ? ` · ${timeAgo(preview.mtimeMs)}` : ""}
           </div>
@@ -181,7 +181,7 @@ export function FilePreview({
               onClick={onPrev}
               disabled={!hasPrev}
               title="Previous file"
-              className="rounded-lg px-1.5 py-1 text-[11px] text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-30"
+              className="rounded-lg px-1.5 py-1 text-[11px] text-fg-subtle transition hover:bg-raised hover:text-fg disabled:opacity-30"
             >
               ‹
             </button>
@@ -190,7 +190,7 @@ export function FilePreview({
               onClick={onNext}
               disabled={!hasNext}
               title="Next file"
-              className="rounded-lg px-1.5 py-1 text-[11px] text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-30"
+              className="rounded-lg px-1.5 py-1 text-[11px] text-fg-subtle transition hover:bg-raised hover:text-fg disabled:opacity-30"
             >
               ›
             </button>
@@ -198,7 +198,7 @@ export function FilePreview({
         )}
 
         {entry.kind === "markdown" && (
-          <div className="flex shrink-0 items-center rounded-lg border border-zinc-800 bg-zinc-900/70 p-0.5">
+          <div className="flex shrink-0 items-center rounded-lg border border-line bg-panel/70 p-0.5">
             {(["rendered", "source"] as const).map((m) => (
               <button
                 key={m}
@@ -207,7 +207,7 @@ export function FilePreview({
                 onClick={() => setMdMode(m)}
                 className={cn(
                   "rounded-md px-2 py-0.5 text-[10.5px] capitalize transition",
-                  mdMode === m ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300",
+                  mdMode === m ? "bg-active text-fg" : "text-fg-subtle hover:text-fg-secondary",
                 )}
               >
                 {m === "rendered" ? "Rendered" : "Source"}
@@ -221,7 +221,7 @@ export function FilePreview({
             type="button"
             onClick={copy}
             title="Copy contents"
-            className="shrink-0 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="shrink-0 rounded-lg p-1.5 text-fg-subtle transition hover:bg-raised hover:text-fg"
           >
             {copied ? <Check size={13} /> : <Copy size={13} />}
           </button>
@@ -232,8 +232,8 @@ export function FilePreview({
             onClick={() => setWrap((v) => !v)}
             title="Toggle line wrap"
             className={cn(
-              "shrink-0 rounded-lg p-1.5 transition hover:bg-zinc-800 hover:text-zinc-200",
-              wrap ? "bg-zinc-800 text-zinc-200" : "text-zinc-500",
+              "shrink-0 rounded-lg p-1.5 transition hover:bg-raised hover:text-fg",
+              wrap ? "bg-raised text-fg" : "text-fg-subtle",
             )}
           >
             <TextWrap size={13} />
@@ -243,7 +243,7 @@ export function FilePreview({
           href={downloadUrl}
           download
           title="Download"
-          className="shrink-0 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+          className="shrink-0 rounded-lg p-1.5 text-fg-subtle transition hover:bg-raised hover:text-fg"
         >
           <Download size={13} />
         </a>
@@ -252,7 +252,7 @@ export function FilePreview({
             type="button"
             onClick={() => onToggleLightbox(!lightboxOpen)}
             title="Full view"
-            className="shrink-0 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="shrink-0 rounded-lg p-1.5 text-fg-subtle transition hover:bg-raised hover:text-fg"
           >
             <Maximize2 size={13} />
           </button>
@@ -262,11 +262,11 @@ export function FilePreview({
       {/* Body */}
       <div className="min-h-0 flex-1">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-[12px] text-zinc-500">
+          <div className="flex items-center justify-center gap-2 py-16 text-[12px] text-fg-subtle">
             <Loader2 size={14} className="animate-spin" /> Loading…
           </div>
         ) : error ? (
-          <p className="px-4 py-10 text-center text-[12px] text-red-300">{error}</p>
+          <p className="px-4 py-10 text-center text-[12px] text-danger-soft">{error}</p>
         ) : isImage ? (
           <button
             type="button"
@@ -278,18 +278,18 @@ export function FilePreview({
           </button>
         ) : preview?.status === "binary" ? (
           <div className="px-4 py-12 text-center">
-            <ImageOff size={22} className="mx-auto mb-3 text-zinc-600" />
-            <p className="text-[12.5px] text-zinc-400">Binary file — preview is not available.</p>
-            <p className="mt-1 text-[11px] text-zinc-600">{formatBytes(size)}</p>
+            <ImageOff size={22} className="mx-auto mb-3 text-fg-faint" />
+            <p className="text-[12.5px] text-fg-muted">Binary file — preview is not available.</p>
+            <p className="mt-1 text-[11px] text-fg-faint">{formatBytes(size)}</p>
             <DownloadAction href={downloadUrl} className="mx-auto mt-4 w-fit" />
           </div>
         ) : preview?.status === "too-large" ? (
           <div className="px-4 py-12 text-center">
-            <ImageOff size={22} className="mx-auto mb-3 text-zinc-600" />
-            <p className="text-[12.5px] text-zinc-400">
+            <ImageOff size={22} className="mx-auto mb-3 text-fg-faint" />
+            <p className="text-[12.5px] text-fg-muted">
               File is too large to preview ({formatBytes(size)}).
             </p>
-            <p className="mt-1 text-[11px] text-zinc-600">Download it instead.</p>
+            <p className="mt-1 text-[11px] text-fg-faint">Download it instead.</p>
             <DownloadAction href={downloadUrl} className="mx-auto mt-4 w-fit" />
           </div>
         ) : entry.kind === "markdown" ? (
@@ -310,7 +310,7 @@ export function FilePreview({
         <div
           data-testid="lightbox"
           onClick={() => onToggleLightbox(false)}
-          className="fixed inset-0 z-[65] flex items-center justify-center bg-black/92 p-4"
+          className="fixed inset-0 z-[65] flex items-center justify-center bg-overlay/92 p-4"
         >
           <img
             src={rawUrl}
@@ -321,11 +321,11 @@ export function FilePreview({
             type="button"
             title="Close full view"
             onClick={() => onToggleLightbox(false)}
-            className="absolute right-4 top-4 rounded-xl bg-zinc-900/80 p-2 text-zinc-300 transition hover:bg-zinc-800"
+            className="absolute right-4 top-4 rounded-xl bg-panel/80 p-2 text-fg-secondary transition hover:bg-raised"
           >
             <X size={16} />
           </button>
-          <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-zinc-900/80 px-3 py-1 font-mono text-[11px] text-zinc-400">
+          <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-panel/80 px-3 py-1 font-mono text-[11px] text-fg-muted">
             {entry.path}
           </span>
         </div>

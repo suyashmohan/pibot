@@ -13,9 +13,8 @@ import {
   Pencil,
   Shrink,
   Sparkles,
-  TerminalSquare,
 } from "lucide-react";
-import { api } from "@/lib/client-api";
+import { pibot, ClientError } from "@/lib/client";
 import { usePiSession } from "@/hooks/usePiSession";
 import { cn, truncate } from "@/lib/utils";
 import { Composer, type OutgoingImage } from "./Composer";
@@ -24,7 +23,7 @@ import { MessageList } from "./MessageList";
 import { MobileActionsMenu, type MobileAction } from "./MobileActionsMenu";
 import { SessionStatChips } from "./TokenStats";
 import { DialogModal, Toasts } from "./Overlays";
-import type { PiModel, Usage } from "@/lib/pi/types";
+import type { PiModel, Usage } from "@/lib/control/types";
 
 function useAutoScroll(dep: unknown) {
   const ref = useRef<HTMLDivElement>(null);
@@ -64,10 +63,7 @@ export function ChatView({
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [showCmds, setShowCmds] = useState(false);
-  const [showBash, setShowBash] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [bashCmd, setBashCmd] = useState("");
-  const [bashOut, setBashOut] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,20 +76,20 @@ export function ChatView({
       mode === "direct"
         ? { message: text, images: images.length ? images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mimeType })) : undefined }
         : { message: text, images: images.length ? images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mimeType })) : undefined, mode };
-    const r = await api(`/api/sessions/${sessionId}/prompt`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    if (!r.ok) {
+    const errText = (err: unknown) =>
+      err instanceof ClientError ? err.message : err instanceof Error ? err.message : String(err);
+    try {
+      await pibot.sessions.prompt(sessionId, payload);
+    } catch (err) {
       // Agent busy without queue mode -> retry automatically as steer.
       if (mode === "direct") {
-        const retry = await api(`/api/sessions/${sessionId}/prompt`, {
-          method: "POST",
-          body: JSON.stringify({ ...payload, streamingBehavior: "steer" }),
-        });
-        if (!retry.ok) s.pushToast("error", retry.error ?? "Failed to send");
+        try {
+          await pibot.sessions.prompt(sessionId, { ...payload, streamingBehavior: "steer" });
+        } catch (retryErr) {
+          s.pushToast("error", errText(retryErr) || "Failed to send");
+        }
       } else {
-        s.pushToast("error", r.error ?? "Failed to send");
+        s.pushToast("error", errText(err) || "Failed to send");
       }
     }
     // Belt-and-suspenders: show the accepted user message promptly even if
@@ -105,38 +101,44 @@ export function ChatView({
   const control = async (action: string, extra?: Record<string, unknown>) => {
     setBusy(action);
     try {
-      const r = await api(`/api/sessions/${sessionId}/control`, {
-        method: "POST",
-        body: JSON.stringify({ action, ...extra }),
-      });
-      if (!r.ok) s.pushToast("error", r.error ?? `${action} failed`);
-      else if (action === "compact") s.pushToast("info", "Compaction requested.");
+      const r = await pibot.sessions.control(sessionId, { action, ...extra });
+      if (action === "compact") s.pushToast("info", "Compaction requested.");
       if (action === "clear_queue") void s.refreshMessages();
       return r;
+    } catch (err) {
+      s.pushToast(
+        "error",
+        err instanceof ClientError ? err.message : `${action} failed`,
+      );
+      return null;
     } finally {
       setBusy(null);
     }
   };
 
   const pickModel = async (m: PiModel) => {
-    const r = await api(`/api/sessions/${sessionId}/model`, {
-      method: "POST",
-      body: JSON.stringify({ provider: m.provider, modelId: m.id }),
-    });
-    if (!r.ok) s.pushToast("error", r.error ?? "Model switch failed");
-    else {
+    try {
+      await pibot.sessions.setModel(sessionId, { provider: m.provider, modelId: m.id });
       s.pushToast("info", `Model → ${String(m.provider ?? "")}/${m.id}`);
       void s.refreshStats();
+    } catch (err) {
+      s.pushToast(
+        "error",
+        err instanceof ClientError ? err.message : "Model switch failed",
+      );
     }
   };
 
   const pickThinking = async (level: string) => {
-    const r = await api(`/api/sessions/${sessionId}/model`, {
-      method: "POST",
-      body: JSON.stringify({ level }),
-    });
-    if (!r.ok) s.pushToast("error", r.error ?? "Thinking switch failed");
-    else void s.refreshStats();
+    try {
+      await pibot.sessions.setThinkingLevel(sessionId, level);
+      void s.refreshStats();
+    } catch (err) {
+      s.pushToast(
+        "error",
+        err instanceof ClientError ? err.message : "Thinking switch failed",
+      );
+    }
   };
 
   const saveName = async () => {
@@ -144,14 +146,15 @@ export function ChatView({
       setEditingName(false);
       return;
     }
-    const r = await api(`/api/sessions/${sessionId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ name: nameDraft.trim() }),
-    });
-    if (!r.ok) s.pushToast("error", r.error ?? "Rename failed");
-    else {
+    try {
+      await pibot.sessions.rename(sessionId, nameDraft.trim());
       s.setMeta((m) => (m ? { ...m, name: nameDraft.trim() } : m));
       onRenamed();
+    } catch (err) {
+      s.pushToast(
+        "error",
+        err instanceof ClientError ? err.message : "Rename failed",
+      );
     }
     setEditingName(false);
   };
@@ -169,38 +172,25 @@ export function ChatView({
 
   const exportHtml = async () => {
     const r = await control("export_html");
-    const p = (r.data as { response?: { data?: { path?: string } } } | undefined)?.response?.data?.path;
-    if (r.ok) s.pushToast("info", p ? `Exported to ${p}` : "Exported.");
-  };
-
-  const runBash = async () => {
-    if (!bashCmd.trim()) return;
-    setBashOut("Running…");
-    const r = await api<{ result?: { output?: string; exitCode?: number } }>(
-      `/api/sessions/${sessionId}/bash`,
-      { method: "POST", body: JSON.stringify({ command: bashCmd }) },
-    );
-    if (!r.ok) setBashOut(`Error: ${r.error}`);
-    else setBashOut(r.data?.result?.output ?? `(exit ${r.data?.result?.exitCode ?? "?"})`);
+    const p = (r?.response?.data as { path?: string } | undefined)?.path;
+    if (r) s.pushToast("info", p ? `Exported to ${p}` : "Exported.");
   };
 
   const lifecycle = async (op: string, extra?: Record<string, unknown>) => {
     setBusy(op);
     try {
-      const r = await api<{ clonedSession?: { id: string } }>(`/api/sessions/${sessionId}/lifecycle`, {
-        method: "POST",
-        body: JSON.stringify({ op, ...extra }),
-      });
-      if (!r.ok) {
-        s.pushToast("error", r.error ?? `${op} failed`);
-        return;
-      }
-      if (op === "clone" && r.data?.clonedSession?.id) {
-        onSessionCloned(r.data.clonedSession.id);
+      const data = await pibot.sessions.lifecycle(sessionId, { op, ...extra });
+      if (op === "clone" && data.clonedSession?.id) {
+        onSessionCloned(data.clonedSession.id);
       } else {
         void s.reload();
         void s.refreshMessages();
       }
+    } catch (err) {
+      s.pushToast(
+        "error",
+        err instanceof ClientError ? err.message : `${op} failed`,
+      );
     } finally {
       setBusy(null);
     }
@@ -225,9 +215,6 @@ export function ChatView({
       case "commands":
         setShowCmds((v) => !v);
         break;
-      case "bash":
-        setShowBash((v) => !v);
-        break;
       case "compact":
         void control("compact");
         break;
@@ -244,14 +231,14 @@ export function ChatView({
   };
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col bg-zinc-950">
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-app">
       {/* Header */}
       {/* `relative z-20` matters: the header's backdrop-blur makes it a stacking
           context, so without a positive z-index the z-50 model/overflow menus
           are trapped beneath .fade-up message rows (fill-mode `both` keeps
           translateY(0), which leaves each row a z-index:0 stacking context).
           Stay below the mobile drawer scrim (z-30). */}
-      <header className="relative z-20 flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/90 px-3 py-2.5 backdrop-blur sm:px-4">
+      <header className="relative z-20 flex shrink-0 flex-wrap items-center gap-2 border-b border-line/80 bg-app/90 px-3 py-2.5 backdrop-blur sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
           {editingName ? (
             <input
@@ -263,7 +250,7 @@ export function ChatView({
                 if (e.key === "Enter") void saveName();
                 if (e.key === "Escape") setEditingName(false);
               }}
-              className="w-52 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-[13px] focus:border-zinc-500 focus:outline-none"
+              className="w-52 rounded-lg border border-line-strong bg-panel px-2 py-1 text-[13px] focus:border-line-focus focus:outline-none"
             />
           ) : (
             <button
@@ -274,10 +261,10 @@ export function ChatView({
               className="group flex min-w-0 items-center gap-1.5"
               title="Rename session"
             >
-              <h1 className="truncate text-[14px] font-semibold text-zinc-100">
+              <h1 className="truncate text-[14px] font-semibold text-fg">
                 {s.meta?.name ?? "…"}
               </h1>
-              <Pencil size={12} className="shrink-0 text-zinc-600 opacity-0 transition group-hover:opacity-100" />
+              <Pencil size={12} className="shrink-0 text-fg-faint opacity-0 transition group-hover:opacity-100" />
             </button>
           )}
         </div>
@@ -320,9 +307,6 @@ export function ChatView({
               slash-command list *and* the fork/clone buttons, so it has one
               entry point — two icons for one panel read as toolbar soup. */}
           <div className="hidden items-center gap-1.5 md:flex">
-          <HeaderBtn title="Run a bash command (output goes to agent context)" onClick={() => setShowBash((v) => !v)} active={showBash}>
-            <TerminalSquare size={14} />
-          </HeaderBtn>
           <HeaderBtn
             title="Compact context"
             onClick={() => void control("compact")}
@@ -352,81 +336,58 @@ export function ChatView({
           </div>
         )}
 
-        {(showCmds || showBash) && (
+        {showCmds && (
           <div className="basis-full">
-            {showCmds && (
-              <div className="mb-2 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                    Slash commands ({s.commands.length})
-                  </span>
-                  <div className="flex gap-1.5">
-                    <MiniBtn onClick={() => void lifecycle("new_session")} loading={busy === "new_session"}>
-                      New pi session
-                    </MiniBtn>
-                    <MiniBtn onClick={() => void lifecycle("clone")} loading={busy === "clone"}>
-                      Clone branch
-                    </MiniBtn>
-                  </div>
+            <div className="mb-2 rounded-xl border border-line bg-panel/60 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+                  Slash commands ({s.commands.length})
+                </span>
+                <div className="flex gap-1.5">
+                  <MiniBtn onClick={() => void lifecycle("new_session")} loading={busy === "new_session"}>
+                    New pi session
+                  </MiniBtn>
+                  <MiniBtn onClick={() => void lifecycle("clone")} loading={busy === "clone"}>
+                    Clone branch
+                  </MiniBtn>
                 </div>
-                {s.commands.length === 0 ? (
-                  <p className="text-[12px] text-zinc-500">No extension commands, prompts or skills found.</p>
-                ) : (
-                  <div className="grid max-h-40 gap-1 overflow-y-auto sm:grid-cols-2">
-                    {s.commands.map((c) => (
-                      <button
-                        key={`${c.source}:${c.name}`}
-                        onClick={() => {
-                          void send(`/${c.name} `, [], "direct");
-                          setShowCmds(false);
-                        }}
-                        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-zinc-800"
-                        title={c.description ?? c.name}
-                      >
-                        <code className="shrink-0 font-mono text-[11.5px] text-indigo-300">/{truncate(c.name, 28)}</code>
-                        <span className="truncate text-[11.5px] text-zinc-500">{c.description ?? c.source}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
-            )}
-            {showBash && (
-              <div className="mb-2 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
-                <div className="flex gap-2">
-                  <input
-                    value={bashCmd}
-                    onChange={(e) => setBashCmd(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void runBash();
-                    }}
-                    placeholder="ls -la   (output is added to agent context on next prompt)"
-                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
-                  />
-                  <MiniBtn onClick={() => void runBash()}>Run</MiniBtn>
+              {s.commands.length === 0 ? (
+                <p className="text-[12px] text-fg-subtle">No extension commands, prompts or skills found.</p>
+              ) : (
+                <div className="grid max-h-40 gap-1 overflow-y-auto sm:grid-cols-2">
+                  {s.commands.map((c) => (
+                    <button
+                      key={`${c.source}:${c.name}`}
+                      onClick={() => {
+                        void send(`/${c.name} `, [], "direct");
+                        setShowCmds(false);
+                      }}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-raised"
+                      title={c.description ?? c.name}
+                    >
+                      <code className="shrink-0 font-mono text-[11.5px] text-accent">/{truncate(c.name, 28)}</code>
+                      <span className="truncate text-[11.5px] text-fg-subtle">{c.description ?? c.source}</span>
+                    </button>
+                  ))}
                 </div>
-                {bashOut != null && (
-                  <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-zinc-950 p-2.5 font-mono text-[11.5px] text-zinc-400">
-                    {bashOut}
-                  </pre>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
         {s.meta && (
-          <div className="flex basis-full items-center gap-1.5 text-[11px] text-zinc-500">
+          <div className="flex basis-full items-center gap-1.5 text-[11px] text-fg-subtle">
             <span
               title={s.connected ? "Live updates connected" : "Connecting live updates…"}
               className={cn(
                 "h-1.5 w-1.5 shrink-0 rounded-full",
-                s.connected ? "bg-emerald-400" : "streaming-dot bg-amber-400",
+                s.connected ? "bg-success" : "streaming-dot bg-warning",
               )}
             />
             <FolderGit2 size={11} />
             <span className="truncate font-mono">{s.meta.cwd}</span>
-            {s.liveError && <span className="ml-2 text-amber-400/90">· {s.liveError}</span>}
+            {s.liveError && <span className="ml-2 text-warning/90">· {s.liveError}</span>}
           </div>
         )}
       </header>
@@ -435,7 +396,7 @@ export function ChatView({
       <div ref={scroll.ref} onScroll={scroll.onScroll} className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-5 px-3 py-6 sm:px-4">
           {s.loading && s.messages.length === 0 ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-zinc-500">
+            <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-fg-subtle">
               <Loader2 size={15} className="animate-spin" /> Loading session…
             </div>
           ) : s.messages.length === 0 && !s.streaming ? (
@@ -457,11 +418,11 @@ export function ChatView({
             />
           )}
           {(s.streaming || s.compacting) && (
-            <div className="flex items-center gap-2 text-[12px] text-zinc-500">
+            <div className="flex items-center gap-2 text-[12px] text-fg-subtle">
               <Loader2 size={13} className="animate-spin" />
               {s.compacting ? "Compacting context…" : "Agent is working…"}
               {(s.queue.steering.length > 0 || s.queue.followUp.length > 0) && (
-                <span className="text-zinc-600">
+                <span className="text-fg-faint">
                   ({s.queue.steering.length + s.queue.followUp.length} queued)
                 </span>
               )}
@@ -483,11 +444,11 @@ export function ChatView({
             onSend={(t, imgs, mode) => void send(t, imgs, mode)}
             onAbort={() => void control("abort")}
           />
-          <p className="mt-1.5 text-center text-[10.5px] text-zinc-700">
+          <p className="mt-1.5 text-center text-[10.5px] text-fg-faint">
             {!s.loading && !s.hasProcess ? (
               <>
                 pi process asleep · focus the message box to start it
-                <span className="text-zinc-800"> · </span>
+                <span className="text-fg-faint"> · </span>
                 <span className="font-mono">{truncate(s.meta?.cwd ?? "", 48)}</span>
               </>
             ) : (
@@ -525,7 +486,7 @@ function HeaderBtn({
       title={title}
       className={cn(
         "rounded-lg p-2 transition",
-        active ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300",
+        active ? "bg-raised text-fg" : "text-fg-subtle hover:bg-raised/70 hover:text-fg-secondary",
       )}
     >
       {loading ? <Loader2 size={14} className="animate-spin" /> : children}
@@ -546,7 +507,7 @@ function MiniBtn({
     <button
       onClick={onClick}
       disabled={loading}
-      className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800/60 px-2.5 py-1 text-[11.5px] text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-50"
+      className="flex items-center gap-1.5 rounded-lg border border-line-strong bg-raised/60 px-2.5 py-1 text-[11.5px] text-fg-secondary transition hover:bg-active disabled:opacity-50"
     >
       {loading && <Loader2 size={11} className="animate-spin" />}
       {children}
@@ -570,15 +531,15 @@ function EmptyState({
   ];
   return (
     <div className="py-10 text-center">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900">
-        <Sparkles size={20} className="text-zinc-300" />
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-line bg-panel">
+        <Sparkles size={20} className="text-fg-secondary" />
       </div>
-      <h2 className="text-[16px] font-semibold text-zinc-100">What should we build?</h2>
-      <p className="mx-auto mt-1.5 max-w-md text-[12.5px] leading-relaxed text-zinc-500">
-        Pi has file tools in <span className="font-mono text-zinc-400">{truncate(cwd ?? "", 56)}</span>
+      <h2 className="text-[16px] font-semibold text-fg">What should we build?</h2>
+      <p className="mx-auto mt-1.5 max-w-md text-[12.5px] leading-relaxed text-fg-subtle">
+        Pi has file tools in <span className="font-mono text-fg-muted">{truncate(cwd ?? "", 56)}</span>
         {modelLabel && (
           <>
-            {" "}· running <span className="font-mono text-zinc-400">{modelLabel}</span>
+            {" "}· running <span className="font-mono text-fg-muted">{modelLabel}</span>
           </>
         )}
         . Ask anything to get started.
@@ -588,14 +549,14 @@ function EmptyState({
           <button
             key={e}
             onClick={() => onExample(e)}
-            className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-left text-[12.5px] text-zinc-300 transition hover:border-zinc-700 hover:bg-zinc-900"
+            className="rounded-xl border border-line bg-panel/50 px-4 py-2.5 text-left text-[12.5px] text-fg-secondary transition hover:border-line-strong hover:bg-panel"
           >
             {e}
           </button>
         ))}
       </div>
-      <p className="mt-4 flex items-center justify-center gap-1 text-[11px] text-zinc-600">
-        Tip: type <code className="rounded bg-zinc-800 px-1 font-mono">/&lt;tab&gt;</code> via the
+      <p className="mt-4 flex items-center justify-center gap-1 text-[11px] text-fg-faint">
+        Tip: type <code className="rounded bg-raised px-1 font-mono">/&lt;tab&gt;</code> via the
         <ChevronDown size={10} className="inline" /> button above for skills & prompts
       </p>
     </div>

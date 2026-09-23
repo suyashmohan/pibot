@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Check, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ExtensionUiRequest } from "@/lib/pi/types";
+import type { ExtensionUiRequest } from "@/lib/control/types";
 import type { Toast } from "@/hooks/usePiSession";
 
 export function DialogModal({
@@ -18,13 +18,13 @@ export function DialogModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="fade-up w-full max-w-md overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl">
-        <div className="border-b border-zinc-800 px-5 py-4">
-          <h3 className="text-[14px] font-semibold text-zinc-100">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-overlay/70 p-4 backdrop-blur-sm">
+      <div className="fade-up w-full max-w-md overflow-hidden rounded-2xl border border-line-strong bg-panel shadow-2xl">
+        <div className="border-b border-line px-5 py-4">
+          <h3 className="text-[14px] font-semibold text-fg">
             {dialog.title ?? "Agent request"}
           </h3>
-          {dialog.message && <p className="mt-1 text-[12.5px] text-zinc-400">{dialog.message}</p>}
+          {dialog.message && <p className="mt-1 text-[12.5px] text-fg-muted">{dialog.message}</p>}
         </div>
         <div className="px-5 py-4">
           {dialog.method === "select" && (
@@ -33,7 +33,7 @@ export function DialogModal({
                 <button
                   key={opt}
                   onClick={() => onAnswer(dialog.id, { value: opt })}
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-800/60 px-4 py-2.5 text-left text-[13px] text-zinc-200 transition hover:border-zinc-500 hover:bg-zinc-800"
+                  className="w-full rounded-xl border border-line-strong bg-raised/60 px-4 py-2.5 text-left text-[13px] text-fg transition hover:border-line-focus hover:bg-raised"
                 >
                   {opt}
                 </button>
@@ -44,13 +44,13 @@ export function DialogModal({
             <div className="flex gap-2">
               <button
                 onClick={() => onAnswer(dialog.id, { confirmed: true })}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-zinc-100 px-4 py-2.5 text-[13px] font-medium text-zinc-950 hover:bg-white"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-medium text-primary-fg hover:bg-primary-hover"
               >
                 <Check size={14} /> Confirm
               </button>
               <button
                 onClick={() => onAnswer(dialog.id, { confirmed: false })}
-                className="flex-1 rounded-xl border border-zinc-700 px-4 py-2.5 text-[13px] text-zinc-300 hover:bg-zinc-800"
+                className="flex-1 rounded-xl border border-line-strong px-4 py-2.5 text-[13px] text-fg-secondary hover:bg-raised"
               >
                 Cancel
               </button>
@@ -67,7 +67,7 @@ export function DialogModal({
                     if (e.key === "Enter") onAnswer(dialog.id, { value });
                   }}
                   placeholder={dialog.placeholder ?? "Type a value…"}
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+                  className="w-full rounded-xl border border-line-strong bg-app px-3.5 py-2.5 text-[13px] text-fg placeholder:text-fg-faint focus:border-line-focus focus:outline-none"
                 />
               ) : (
                 <textarea
@@ -75,19 +75,19 @@ export function DialogModal({
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                   rows={8}
-                  className="w-full resize-y rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 font-mono text-[12.5px] text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+                  className="w-full resize-y rounded-xl border border-line-strong bg-app px-3.5 py-2.5 font-mono text-[12.5px] text-fg placeholder:text-fg-faint focus:border-line-focus focus:outline-none"
                 />
               )}
               <div className="flex gap-2">
                 <button
                   onClick={() => onAnswer(dialog.id, { value })}
-                  className="flex-1 rounded-xl bg-zinc-100 px-4 py-2 text-[13px] font-medium text-zinc-950 hover:bg-white"
+                  className="flex-1 rounded-xl bg-primary px-4 py-2 text-[13px] font-medium text-primary-fg hover:bg-primary-hover"
                 >
                   Submit
                 </button>
                 <button
                   onClick={() => onAnswer(dialog.id, { cancelled: true })}
-                  className="rounded-xl border border-zinc-700 px-4 py-2 text-[13px] text-zinc-300 hover:bg-zinc-800"
+                  className="rounded-xl border border-line-strong px-4 py-2 text-[13px] text-fg-secondary hover:bg-raised"
                 >
                   Dismiss
                 </button>
@@ -97,7 +97,7 @@ export function DialogModal({
           {(dialog.method === "select" || dialog.method === "confirm") && (
             <button
               onClick={() => onAnswer(dialog.id, { cancelled: true })}
-              className="mt-3 w-full text-center text-[12px] text-zinc-500 hover:text-zinc-300"
+              className="mt-3 w-full text-center text-[12px] text-fg-subtle hover:text-fg-secondary"
             >
               Dismiss
             </button>
@@ -116,9 +116,9 @@ export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:
           key={t.id}
           className={cn(
             "fade-up pointer-events-auto flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-[12.5px] shadow-xl backdrop-blur",
-            t.kind === "error" && "border-red-500/30 bg-red-950/90 text-red-200",
-            t.kind === "warning" && "border-amber-500/30 bg-amber-950/90 text-amber-200",
-            t.kind === "info" && "border-zinc-700 bg-zinc-900/95 text-zinc-300",
+            t.kind === "error" && "border-danger/30 bg-danger-surface/90 text-danger-soft",
+            t.kind === "warning" && "border-warning/30 bg-warning-surface/90 text-warning-soft",
+            t.kind === "info" && "border-line-strong bg-panel/95 text-fg-secondary",
           )}
         >
           {t.kind === "error" ? (

@@ -1,5 +1,5 @@
-import { fail, ok, toErrorMessage } from "@/lib/api";
-import { listRunningProcesses, processLimits } from "@/lib/pi/manager";
+import { control } from "@/lib/control";
+import { mapControlError, ok } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,11 +7,8 @@ export const dynamic = "force-dynamic";
 /** Live pi subprocesses, with the session/project each one serves. */
 export async function GET() {
   try {
-    return ok({
-      processes: await listRunningProcesses(),
-      limits: processLimits(),
-    });
+    return ok(await control.processes.list());
   } catch (err) {
-    return fail(toErrorMessage(err), 500);
+    return mapControlError(err);
   }
 }

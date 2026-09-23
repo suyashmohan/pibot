@@ -1,8 +1,8 @@
+import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { sessions as sessionsTable } from "@/lib/db/schema";
-import { subscribe } from "@/lib/pi/manager";
+import { control } from "@/lib/control";
 import { fail } from "@/lib/api";
-import { eq } from "drizzle-orm";
 import type { PiEvent } from "@/lib/pi/types";
 
 export const runtime = "nodejs";
@@ -17,11 +17,18 @@ type Params = { params: Promise<{ id: string }> };
  * entry (events fan out once a process exists) so an old session can be
  * viewed without starting a process. The stream also stays valid across
  * respawns — subscribers survive idle reaping and explicit stops.
+ *
+ * The adapter forwards **raw** `PiEvent`s (named SSE); projection belongs to
+ * `control.sessions.subscribe` / `lib/client/stream.ts`.
  */
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
 
-  const row = (await getDb()).select().from(sessionsTable).where(eq(sessionsTable.id, id)).get();
+  const row = (await getDb())
+    .select()
+    .from(sessionsTable)
+    .where(eq(sessionsTable.id, id))
+    .get();
   if (!row) return fail("Session not found", 404);
 
   const stream = new ReadableStream({
@@ -44,7 +51,7 @@ export async function GET(req: Request, { params }: Params) {
         }
       }, 25_000);
 
-      const off = subscribe(id, (ev: PiEvent) => {
+      const off = control.sessions.subscribeRaw(id, (ev: PiEvent) => {
         send(ev.type ?? "message", ev);
       });
 

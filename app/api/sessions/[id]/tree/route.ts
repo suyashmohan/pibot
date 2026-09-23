@@ -1,5 +1,5 @@
-import { ensureClient } from "@/lib/pi/manager";
-import { fail, ok, toErrorMessage } from "@/lib/api";
+import { control } from "@/lib/control";
+import { mapControlError, ok } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,11 +9,9 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
   try {
-    const client = await ensureClient(id);
-    const res = await client.send({ type: "get_tree" });
-    if (!res.success) return fail(String(res.error ?? "get_tree failed"), 500);
-    return ok({ tree: res.data });
+    // Spawns (unused by the UI) — keep for the future supervisor surface.
+    return ok(await control.sessions.getTree(id));
   } catch (err) {
-    return fail(toErrorMessage(err), 500);
+    return mapControlError(err);
   }
 }
