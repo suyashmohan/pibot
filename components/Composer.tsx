@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CornerLeftUp, FileText, Folder, ImagePlus, Loader2, Send, Square, X } from "lucide-react";
-import { api } from "@/lib/client-api";
+import { pibot } from "@/lib/client";
 import { cn } from "@/lib/utils";
 import {
   applyDirMention,
@@ -123,19 +123,18 @@ export function Composer({
     let cancelled = false;
     setFiles({ dir: mentionDir, entries: [], loading: true, error: null });
     void (async () => {
-      const r = await api<{ entries: MentionEntry[] }>(
-        `/api/sessions/${sessionId}/files?dir=${encodeURIComponent(mentionDir)}`,
-      );
-      if (cancelled) return;
-      if (r.ok && r.data) {
-        filesCache.current.set(mentionDir, r.data.entries);
-        setFiles({ dir: mentionDir, entries: r.data.entries, loading: false, error: null });
-      } else {
+      try {
+        const data = await pibot.files.mentions(sessionId, mentionDir);
+        if (cancelled) return;
+        filesCache.current.set(mentionDir, data.entries);
+        setFiles({ dir: mentionDir, entries: data.entries, loading: false, error: null });
+      } catch (err) {
+        if (cancelled) return;
         setFiles({
           dir: mentionDir,
           entries: [],
           loading: false,
-          error: r.error ?? "Could not list this folder",
+          error: err instanceof Error ? err.message : "Could not list this folder",
         });
       }
     })();
@@ -209,20 +208,20 @@ export function Composer({
   };
 
   return (
-    <div className="relative z-20 rounded-2xl border border-zinc-700/60 bg-zinc-900/80 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.8)] backdrop-blur transition focus-within:border-zinc-500">
+    <div className="relative z-20 rounded-2xl border border-line-strong/60 bg-panel/80 shadow-[0_8px_40px_-12px_var(--pibot-shadow-color)] backdrop-blur transition focus-within:border-line-focus">
       {menuOpen && (
         <div
           ref={menuRef}
-          className="absolute inset-x-0 bottom-full z-50 mb-2 max-h-[280px] overflow-y-auto rounded-2xl border border-zinc-700/70 bg-zinc-900 p-1.5 shadow-2xl"
+          className="absolute inset-x-0 bottom-full z-50 mb-2 max-h-[280px] overflow-y-auto rounded-2xl border border-line-strong/70 bg-panel p-1.5 shadow-2xl"
         >
           <div className="flex items-center justify-between px-2.5 pb-1 pt-1.5">
-            <span className="text-[10.5px] font-semibold uppercase tracking-wider text-zinc-500">
+            <span className="text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle">
               Slash commands
             </span>
-            <span className="font-mono text-[10px] text-zinc-600">↑↓ navigate · Enter pick</span>
+            <span className="font-mono text-[10px] text-fg-faint">↑↓ navigate · Enter pick</span>
           </div>
           {matches.length === 0 ? (
-            <div className="px-2.5 py-3 text-[12px] text-zinc-500">No commands match “{query}”.</div>
+            <div className="px-2.5 py-3 text-[12px] text-fg-subtle">No commands match “{query}”.</div>
           ) : (
             <div role="listbox" aria-label="Slash commands">
               {matches.map((c, i) => (
@@ -236,14 +235,14 @@ export function Composer({
                   onClick={() => accept(c)}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition",
-                    i === activeIdx ? "bg-zinc-800" : "hover:bg-zinc-800/60",
+                    i === activeIdx ? "bg-raised" : "hover:bg-raised/60",
                   )}
                 >
-                  <code className="shrink-0 font-mono text-[12px] text-indigo-300">/{c.name}</code>
-                  <span className="min-w-0 flex-1 truncate text-[11.5px] text-zinc-500">
+                  <code className="shrink-0 font-mono text-[12px] text-accent">/{c.name}</code>
+                  <span className="min-w-0 flex-1 truncate text-[11.5px] text-fg-subtle">
                     {c.description ?? ""}
                   </span>
-                  <span className="shrink-0 rounded-full bg-zinc-800 px-1.5 py-px font-mono text-[10px] text-zinc-500">
+                  <span className="shrink-0 rounded-full bg-raised px-1.5 py-px font-mono text-[10px] text-fg-subtle">
                     {c.source}
                   </span>
                 </button>
@@ -255,24 +254,24 @@ export function Composer({
       {mentionOpen && (
         <div
           ref={menuRef}
-          className="absolute inset-x-0 bottom-full z-50 mb-2 max-h-[280px] overflow-y-auto rounded-2xl border border-zinc-700/70 bg-zinc-900 p-1.5 shadow-2xl"
+          className="absolute inset-x-0 bottom-full z-50 mb-2 max-h-[280px] overflow-y-auto rounded-2xl border border-line-strong/70 bg-panel p-1.5 shadow-2xl"
         >
           <div className="flex items-center justify-between gap-2 px-2.5 pb-1 pt-1.5">
-            <span className="truncate text-[10.5px] font-semibold uppercase tracking-wider text-zinc-500">
+            <span className="truncate text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle">
               Files · {normalizedDir ? `${normalizedDir}/` : "project root"}
             </span>
-            <span className="shrink-0 font-mono text-[10px] text-zinc-600">
+            <span className="shrink-0 font-mono text-[10px] text-fg-faint">
               {filesLoading ? "loading…" : "↑↓ navigate · Enter open"}
             </span>
           </div>
           {filesLoading ? (
-            <div className="flex items-center gap-2 px-2.5 py-3 text-[12px] text-zinc-500">
+            <div className="flex items-center gap-2 px-2.5 py-3 text-[12px] text-fg-subtle">
               <Loader2 size={12} className="animate-spin" /> Loading…
             </div>
           ) : files.error ? (
-            <div className="px-2.5 py-3 text-[12px] text-amber-300/90">{files.error}</div>
+            <div className="px-2.5 py-3 text-[12px] text-warning-soft/90">{files.error}</div>
           ) : mentionRows.length === 0 ? (
-            <div className="px-2.5 py-3 text-[12px] text-zinc-500">
+            <div className="px-2.5 py-3 text-[12px] text-fg-subtle">
               {mentionFilter ? `Nothing matches “${mentionFilter}”.` : "Empty folder."}
             </div>
           ) : (
@@ -290,17 +289,17 @@ export function Composer({
                     onClick={() => activateMention(entry)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition",
-                      i === activeIdx ? "bg-zinc-800" : "hover:bg-zinc-800/60",
+                      i === activeIdx ? "bg-raised" : "hover:bg-raised/60",
                     )}
                   >
                     {isParent ? (
-                      <CornerLeftUp size={13} className="shrink-0 text-zinc-500" />
+                      <CornerLeftUp size={13} className="shrink-0 text-fg-subtle" />
                     ) : entry.type === "dir" ? (
-                      <Folder size={13} className="shrink-0 text-amber-300/80" />
+                      <Folder size={13} className="shrink-0 text-warning-soft/80" />
                     ) : (
-                      <FileText size={13} className="shrink-0 text-zinc-500" />
+                      <FileText size={13} className="shrink-0 text-fg-subtle" />
                     )}
-                    <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-zinc-200">
+                    <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg">
                       {isParent ? ".." : entry.name}
                       {entry.type === "dir" && !isParent ? "/" : ""}
                     </span>
@@ -314,7 +313,7 @@ export function Composer({
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 px-3 pt-3">
           {images.map((img, i) => (
-            <div key={i} className="relative overflow-hidden rounded-lg border border-zinc-700">
+            <div key={i} className="relative overflow-hidden rounded-lg border border-line-strong">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`data:${img.mimeType};base64,${img.data}`}
@@ -323,7 +322,7 @@ export function Composer({
               />
               <button
                 onClick={() => setImages((arr) => arr.filter((_, j) => j !== i))}
-                className="absolute right-0.5 top-0.5 rounded-full bg-black/70 p-0.5 text-zinc-300 hover:text-white"
+                className="absolute right-0.5 top-0.5 rounded-full bg-overlay/70 p-0.5 text-fg-secondary hover:text-primary-fg"
               >
                 <X size={12} />
               </button>
@@ -400,12 +399,12 @@ export function Composer({
             ? "Agent is working… type to steer or queue a follow-up (Enter)"
             : "Ask anything…  (Shift+Enter for newline, / commands, @ files)"
         }
-        className="max-h-[200px] w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[14px] leading-relaxed text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+        className="max-h-[200px] w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[14px] leading-relaxed text-fg placeholder:text-fg-faint focus:outline-none"
       />
       <div className="flex items-center gap-2 px-3 pb-3 pt-1">
         <button
           onClick={() => fileRef.current?.click()}
-          className="rounded-lg p-2 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300"
+          className="rounded-lg p-2 text-fg-subtle transition hover:bg-raised hover:text-fg-secondary"
           title="Attach images"
         >
           <ImagePlus size={17} />
@@ -422,7 +421,7 @@ export function Composer({
           }}
         />
         {streaming && (
-          <div className="flex items-center gap-1 rounded-lg bg-zinc-800/80 p-0.5 text-[11.5px]">
+          <div className="flex items-center gap-1 rounded-lg bg-raised/80 p-0.5 text-[11.5px]">
             {(
               [
                 ["direct", "Steer"],
@@ -435,8 +434,8 @@ export function Composer({
                 className={cn(
                   "rounded-md px-2 py-1 font-medium transition",
                   queueMode === v
-                    ? "bg-zinc-700 text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-300",
+                    ? "bg-active text-fg"
+                    : "text-fg-subtle hover:text-fg-secondary",
                 )}
               >
                 {label}
@@ -445,7 +444,7 @@ export function Composer({
           </div>
         )}
         {(queueCounts.steering > 0 || queueCounts.followUp > 0) && (
-          <span className="text-[11px] text-zinc-500">
+          <span className="text-[11px] text-fg-subtle">
             {queueCounts.steering > 0 && `${queueCounts.steering} steering`}
             {queueCounts.steering > 0 && queueCounts.followUp > 0 && " · "}
             {queueCounts.followUp > 0 && `${queueCounts.followUp} queued`}
@@ -455,7 +454,7 @@ export function Composer({
           {streaming && (
             <button
               onClick={onAbort}
-              className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2 text-[13px] font-medium text-red-300 transition hover:bg-red-500/20"
+              className="flex items-center gap-1.5 rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2 text-[13px] font-medium text-danger-soft transition hover:bg-danger/20"
             >
               <Square size={13} className="fill-current" />
               Stop
@@ -467,8 +466,8 @@ export function Composer({
             className={cn(
               "flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-medium transition",
               canSend
-                ? "bg-zinc-100 text-zinc-950 hover:bg-white"
-                : "cursor-not-allowed bg-zinc-800 text-zinc-600",
+                ? "bg-primary text-primary-fg hover:bg-primary-hover"
+                : "cursor-not-allowed bg-raised text-fg-faint",
             )}
           >
             {compacting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}

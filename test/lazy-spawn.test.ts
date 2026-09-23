@@ -10,11 +10,15 @@
  */
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { GET as sessionGET } from "@/app/api/sessions/[id]/route";
+import { GET as gitGET } from "@/app/api/sessions/[id]/git/route";
 import { POST as controlPOST } from "@/app/api/sessions/[id]/control/route";
 import { GET as messagesGET } from "@/app/api/sessions/[id]/messages/route";
+import { GET as modelGET } from "@/app/api/sessions/[id]/model/route";
 import { POST as startPOST } from "@/app/api/sessions/[id]/start/route";
 import { GET as statsGET } from "@/app/api/sessions/[id]/stats/route";
 import { GET as streamGET } from "@/app/api/sessions/[id]/stream/route";
+import { GET as treeGET } from "@/app/api/sessions/[id]/tree/route";
+import { GET as modelsGET } from "@/app/api/models/route";
 import { getDb } from "@/lib/db";
 import { sessions } from "@/lib/db/schema";
 import {
@@ -22,6 +26,7 @@ import {
   getLiveClient,
   listRunningProcesses,
   persistMessages,
+  stopProcess,
 } from "@/lib/pi/manager";
 import {
   cleanupDbs,
@@ -44,6 +49,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   for (const id of liveIds.splice(0)) destroyClient(id);
+  stopProcess(null); // never leak the shared metadata process across tests
   restorePi?.();
   restorePi = null;
 });
@@ -144,6 +150,16 @@ describe("viewing a session does not spawn a pi process", () => {
     await assertNoProcess(id);
   });
 
+  test("git change summary serves the working tree without spawning", async () => {
+    const id = await seedSession();
+    const res = await gitGET(new Request("http://localhost/api/test"), params(id));
+    expect(res.status).toBe(200);
+    const data = await body<{ data: { isRepo: boolean; files: unknown[] } }>(res);
+    expect(data.data.isRepo).toBe(false); // temp dir is not a repo
+    expect(data.data.files).toEqual([]);
+    await assertNoProcess(id);
+  });
+
   test("read-only control actions do not spawn", async () => {
     const id = await seedSession();
     const data = await body<{ data: { response: unknown; live: boolean } }>(
@@ -152,6 +168,34 @@ describe("viewing a session does not spawn a pi process", () => {
     expect(data.data.live).toBe(false);
     expect(data.data.response).toBeNull();
     await assertNoProcess(id);
+  });
+});
+
+/**
+ * Known lazy-spawn leaks. These endpoints DO spawn today; the control-plane
+ * extraction must not silently "fix" them by switching to `getLiveClient`.
+ */
+describe("known spawn leaks stay locked", () => {
+  test("GET /model spawns the session process (opens the model picker)", async () => {
+    const id = await seedSession();
+    const res = await modelGET(new Request("http://localhost/api/test"), params(id));
+    expect(res.status).toBe(200);
+    expect(getLiveClient(id)).not.toBeNull();
+    expect((await listRunningProcesses()).some((p) => p.sessionId === id)).toBe(true);
+  });
+
+  test("GET /tree spawns the session process (unused by the UI)", async () => {
+    const id = await seedSession();
+    const res = await treeGET(new Request("http://localhost/api/test"), params(id));
+    expect(res.status).toBe(200);
+    expect(getLiveClient(id)).not.toBeNull();
+  });
+
+  test("GET /api/models spawns the shared metadata process", async () => {
+    expect((await listRunningProcesses()).some((p) => p.kind === "server")).toBe(false);
+    const res = await modelsGET();
+    expect(res.status).toBe(200);
+    expect((await listRunningProcesses()).some((p) => p.kind === "server")).toBe(true);
   });
 });
 

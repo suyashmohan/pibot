@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronUp, Folder, FolderOpen, Loader2 } from "lucide-react";
-import { api } from "@/lib/client-api";
+import { pibot } from "@/lib/client";
 import { cn } from "@/lib/utils";
 
 export interface FolderEntry {
@@ -61,21 +61,25 @@ export function FolderPicker({
 
   const load = async (asked: string): Promise<string | null> => {
     setListing({ ...EMPTY, path: asked, loading: true });
-    const r = await api<{ path: string; parent: string | null; entries: FolderEntry[] }>(
-      `/api/projects/folders?path=${encodeURIComponent(asked)}`,
-    );
-    if (r.ok && r.data) {
+    try {
+      const data = await pibot.projects.listFolders(asked);
       setListing({
-        path: r.data.path,
-        parent: r.data.parent,
-        entries: r.data.entries,
+        path: data.path,
+        parent: data.parent,
+        entries: data.entries,
         loading: false,
         error: null,
       });
-      return r.data.path;
+      return data.path;
+    } catch (err) {
+      setListing({
+        ...EMPTY,
+        path: asked,
+        loading: false,
+        error: err instanceof Error ? err.message : "Could not list folders",
+      });
+      return null;
     }
-    setListing({ ...EMPTY, path: asked, loading: false, error: r.error ?? "Could not list folders" });
-    return null;
   };
 
   const toggle = async () => {
@@ -114,7 +118,7 @@ export function FolderPicker({
             }
           }}
           placeholder={placeholder}
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-1.5 pl-2.5 pr-9 font-mono text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+          className="w-full rounded-lg border border-line-strong bg-app py-1.5 pl-2.5 pr-9 font-mono text-[12px] text-fg placeholder:text-fg-faint focus:border-line-focus focus:outline-none"
         />
         <button
           type="button"
@@ -125,7 +129,7 @@ export function FolderPicker({
           aria-label={open ? "Hide folders" : "Browse folders"}
           className={cn(
             "absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1 transition",
-            open ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200",
+            open ? "bg-raised text-fg" : "text-fg-subtle hover:bg-raised hover:text-fg",
           )}
         >
           {open ? <FolderOpen size={13} /> : <Folder size={13} />}
@@ -135,9 +139,9 @@ export function FolderPicker({
       {open && (
         <div
           data-testid="folder-picker-panel"
-          className="fade-up mt-1.5 overflow-hidden rounded-lg border border-zinc-700/70 bg-zinc-950"
+          className="fade-up mt-1.5 overflow-hidden rounded-lg border border-line-strong/70 bg-app"
         >
-          <div className="flex items-center gap-1 border-b border-zinc-800 px-2 py-1.5">
+          <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
             <button
               type="button"
               data-testid="folder-picker-up"
@@ -145,23 +149,23 @@ export function FolderPicker({
               disabled={!listing.parent}
               title="Go to parent folder"
               aria-label="Go to parent folder"
-              className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              className="rounded-md p-1 text-fg-subtle transition hover:bg-raised hover:text-fg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             >
               <ChevronUp size={13} />
             </button>
-            <span className="truncate font-mono text-[10.5px] text-zinc-500" title={dirLabel}>
+            <span className="truncate font-mono text-[10.5px] text-fg-subtle" title={dirLabel}>
               {dirLabel}
             </span>
           </div>
           <div className="max-h-52 overflow-y-auto p-1">
             {listing.loading ? (
-              <div className="flex items-center gap-1.5 px-2 py-3 text-[11.5px] text-zinc-500">
+              <div className="flex items-center gap-1.5 px-2 py-3 text-[11.5px] text-fg-subtle">
                 <Loader2 size={12} className="animate-spin" /> Loading…
               </div>
             ) : listing.error ? (
-              <div className="px-2 py-3 text-[11.5px] text-amber-300/90">{listing.error}</div>
+              <div className="px-2 py-3 text-[11.5px] text-warning-soft/90">{listing.error}</div>
             ) : listing.entries.length === 0 ? (
-              <div className="px-2 py-3 text-[11.5px] text-zinc-600">No subfolders here.</div>
+              <div className="px-2 py-3 text-[11.5px] text-fg-faint">No subfolders here.</div>
             ) : (
               listing.entries.map((entry) => (
                 <button
@@ -169,10 +173,10 @@ export function FolderPicker({
                   type="button"
                   data-folder-path={entry.path}
                   onClick={() => void navigate(entry.path)}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-zinc-800"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-raised"
                 >
-                  <Folder size={12} className="shrink-0 text-amber-300/70" />
-                  <span className="truncate font-mono text-[11.5px] text-zinc-300">{entry.name}</span>
+                  <Folder size={12} className="shrink-0 text-warning-soft/70" />
+                  <span className="truncate font-mono text-[11.5px] text-fg-secondary">{entry.name}</span>
                 </button>
               ))
             )}

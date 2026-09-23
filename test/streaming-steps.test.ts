@@ -18,7 +18,7 @@ import type { createRoot } from "react-dom/client";
 import { loadReactDom } from "./helpers/dom";
 import { Window } from "happy-dom";
 import { MessageList, messageKey } from "@/components/MessageList";
-import { streamingAssistantMessage } from "@/lib/pi/types";
+import { streamingAssistantMessage } from "@/lib/control/types";
 
 (globalThis as unknown as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 

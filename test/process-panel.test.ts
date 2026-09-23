@@ -11,7 +11,7 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { AppShell } from "@/components/AppShell";
 import { ProcessPanel } from "@/components/ProcessPanel";
-import type { ProcessLimits, RunningProcessInfo } from "@/lib/pi/types";
+import type { ProcessLimits, RunningProcessInfo } from "@/lib/control/types";
 
 const now = Date.now();
 

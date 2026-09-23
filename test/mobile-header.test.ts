@@ -22,7 +22,6 @@ import { SessionStatChips } from "@/components/TokenStats";
 
 const MENU_LABELS = [
   "Slash commands",
-  "Bash console",
   "Compact context",
   "Copy last reply",
   "Export session (HTML)",
@@ -39,6 +38,22 @@ describe("mobile overflow menu", () => {
     expect(icons.length).toBe(MENU_LABELS.length); // one icon per row, not text-only
 
     for (const label of MENU_LABELS) expect(html).toContain(label);
+  });
+
+  test("no manual bash console entry (feature removed from the header)", () => {
+    const html = renderToString(createElement(MobileActionsMenu, { onSelect: () => {} }));
+    expect(html).not.toContain("Bash console");
+  });
+
+  test("the desktop header no longer offers a bash command", () => {
+    const html = renderToString(
+      createElement(ChatView, {
+        sessionId: "session-1",
+        onRenamed: () => {},
+        onSessionCloned: () => {},
+      }),
+    );
+    expect(html).not.toContain("Run a bash command");
   });
 });
 

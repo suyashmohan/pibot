@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/client-api";
+import { pibot } from "@/lib/client";
 
 export interface ProjectInfo {
   path: string;
@@ -17,8 +17,7 @@ export function useProjects() {
 
   const refresh = useCallback(async () => {
     try {
-      const r = await api<{ projects: ProjectInfo[] }>("/api/projects");
-      if (r.ok && r.data) setProjects(r.data.projects);
+      setProjects(await pibot.projects.list());
     } catch {
       /* ignore transient */
     }
@@ -31,11 +30,11 @@ export function useProjects() {
   /** Pin a folder. Returns an error message, or null on success. */
   const pin = useCallback(
     async (folderPath: string): Promise<string | null> => {
-      const r = await api("/api/projects", {
-        method: "POST",
-        body: JSON.stringify({ path: folderPath }),
-      });
-      if (!r.ok) return r.error ?? "Failed to add project";
+      try {
+        await pibot.projects.pin(folderPath);
+      } catch (err) {
+        return err instanceof Error ? err.message : "Failed to add project";
+      }
       await refresh();
       return null;
     },
@@ -44,10 +43,11 @@ export function useProjects() {
 
   const unpin = useCallback(
     async (folderPath: string) => {
-      await api("/api/projects", {
-        method: "DELETE",
-        body: JSON.stringify({ path: folderPath }),
-      });
+      try {
+        await pibot.projects.unpin(folderPath);
+      } catch {
+        /* ignore */
+      }
       await refresh();
     },
     [refresh],

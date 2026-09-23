@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/client-api";
+import { pibot } from "@/lib/client";
 import type { BrowseEntry, FilePreviewData } from "@/lib/file-browser";
 
 export interface DirectoryListing {
@@ -26,20 +26,24 @@ export function useDirectoryListing(sessionId: string, dir: string): DirectoryLi
     let cancelled = false;
     setState((prev) => ({ ...prev, loading: true, error: null }));
     void (async () => {
-      const r = await api<{ entries: BrowseEntry[]; truncated: boolean }>(
-        `/api/sessions/${sessionId}/files/browse?dir=${encodeURIComponent(dir)}`,
-      );
-      if (cancelled) return;
-      if (!r.ok) {
-        setState({ entries: [], truncated: false, loading: false, error: r.error ?? "Failed to load folder" });
-        return;
+      try {
+        const data = await pibot.files.browse(sessionId, dir);
+        if (cancelled) return;
+        setState({
+          entries: data.entries ?? [],
+          truncated: Boolean(data.truncated),
+          loading: false,
+          error: null,
+        });
+      } catch (err) {
+        if (cancelled) return;
+        setState({
+          entries: [],
+          truncated: false,
+          loading: false,
+          error: err instanceof Error ? err.message : "Failed to load folder",
+        });
       }
-      setState({
-        entries: r.data?.entries ?? [],
-        truncated: Boolean(r.data?.truncated),
-        loading: false,
-        error: null,
-      });
     })();
     return () => {
       cancelled = true;
@@ -68,15 +72,18 @@ export function useFilePreview(sessionId: string, path: string | null): PreviewS
     let cancelled = false;
     setState({ data: null, loading: true, error: null });
     void (async () => {
-      const r = await api<FilePreviewData>(
-        `/api/sessions/${sessionId}/files/content?path=${encodeURIComponent(path)}`,
-      );
-      if (cancelled) return;
-      if (!r.ok || !r.data) {
-        setState({ data: null, loading: false, error: r.error ?? "Failed to load file" });
-        return;
+      try {
+        const data = await pibot.files.preview(sessionId, path);
+        if (cancelled) return;
+        setState({ data, loading: false, error: null });
+      } catch (err) {
+        if (cancelled) return;
+        setState({
+          data: null,
+          loading: false,
+          error: err instanceof Error ? err.message : "Failed to load file",
+        });
       }
-      setState({ data: r.data, loading: false, error: null });
     })();
     return () => {
       cancelled = true;

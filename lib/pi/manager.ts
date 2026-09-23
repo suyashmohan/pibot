@@ -5,7 +5,8 @@ import { dirExists } from "../files";
 import { messages as messagesTable, sessions as sessionsTable } from "../db/schema";
 import { piIdleTimeoutMs, piMaxProcesses } from "./env";
 import { PiRpcClient } from "./rpc-client";
-import type { AgentMessage, PiEvent, ProcessLimits, RunningProcessInfo, RpcResponse } from "./types";
+import type { PiEvent, RpcResponse } from "./types";
+import type { AgentMessage, ProcessLimits, RunningProcessInfo } from "../control/types";
 
 interface ManagedEntry {
   webId: string;
@@ -22,6 +23,8 @@ interface ManagedEntry {
   lastActivity: number;
   /** When the current child process was spawned (for the process panel). */
   startedAt: number;
+  /** Wall-clock start of the in-flight agent turn (first `agent_start`). */
+  turnStartedAt: number | null;
 }
 
 declare global {
@@ -59,6 +62,7 @@ export function subscribe(webId: string, listener: (ev: PiEvent) => void): () =>
       busy: false,
       lastActivity: Date.now(),
       startedAt: Date.now(),
+      turnStartedAt: null,
     };
     managedMap().set(webId, entry);
   }
@@ -70,12 +74,29 @@ export function subscribe(webId: string, listener: (ev: PiEvent) => void): () =>
 }
 
 function attachForwarding(webId: string, client: PiRpcClient): () => void {
-  const onEvent = (ev: PiEvent) => {
+  const onEvent = (raw: PiEvent) => {
     const entry = managedMap().get(webId);
+    let ev = raw;
     if (entry) {
       entry.lastActivity = Date.now();
       if (ev.type === "agent_start" || ev.type === "compaction_start") entry.busy = true;
       if (ev.type === "agent_settled" || ev.type === "compaction_end") entry.busy = false;
+      if (ev.type === "agent_start" && entry.turnStartedAt == null) {
+        // First start of the run wins: an auto-retry emits another
+        // `agent_start`, but the whole turn is one user-visible wait.
+        entry.turnStartedAt = Date.now();
+      }
+      if (ev.type === "agent_settled") {
+        const startedAt = entry.turnStartedAt;
+        entry.turnStartedAt = null;
+        if (startedAt != null) {
+          const durationMs = Math.max(0, Date.now() - startedAt);
+          // Tag the live event with the same number that gets persisted, so
+          // an open tab and a later refresh can never disagree.
+          ev = { ...ev, durationMs };
+          persistTurnDuration(webId, durationMs);
+        }
+      }
     }
     managedMap().get(webId)?.emitter.emit("sse", ev);
     // Best-effort persistence: reconcile the message cache once the
@@ -109,6 +130,21 @@ function touchSession(webId: string) {
       db
         .update(sessionsTable)
         .set({ updatedAt: Date.now() })
+        .where(eq(sessionsTable.id, webId))
+        .run(),
+    )
+    .catch(() => {
+      /* noop */
+    });
+}
+
+/** Persist the completed turn's wall time (fire-and-forget, best effort). */
+function persistTurnDuration(webId: string, durationMs: number): void {
+  void getDb()
+    .then((db) =>
+      db
+        .update(sessionsTable)
+        .set({ lastTurnMs: durationMs })
         .where(eq(sessionsTable.id, webId))
         .run(),
     )
@@ -190,6 +226,7 @@ async function ensureClientInner(webId: string): Promise<PiRpcClient> {
     busy: false,
     lastActivity: Date.now(),
     startedAt: Date.now(),
+    turnStartedAt: null,
   });
 
   // Verify the process is usable and capture pi-assigned ids.
@@ -314,6 +351,7 @@ export function stopProcess(
   }
   entry.client = null;
   entry.busy = false;
+  entry.turnStartedAt = null;
   entry.detach = () => {};
   entry.emitter.emit("sse", {
     type: "client_exit",
@@ -379,6 +417,7 @@ function reapEntry(entry: ManagedEntry, reason: "idle" | "cap"): void {
   }
   entry.client = null;
   entry.busy = false;
+  entry.turnStartedAt = null;
   entry.detach = () => {};
   console.log(`[pi] reaped ${reason} process for session ${entry.webId}`);
 }

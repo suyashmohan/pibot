@@ -18,10 +18,10 @@ function Row({
 }) {
   return (
     <div className={cn("flex items-baseline justify-between gap-4 px-1 py-[3px]", indent && "pl-3.5")}>
-      <span className={cn("text-zinc-500", strong && "text-zinc-300")}>{label}</span>
-      <span className={cn("font-mono tabular-nums text-zinc-300", strong && "text-zinc-100")}>
+      <span className={cn("text-fg-subtle", strong && "text-fg-secondary")}>{label}</span>
+      <span className={cn("font-mono tabular-nums text-fg-secondary", strong && "text-fg")}>
         {value}
-        {hint && <span className="ml-1.5 text-zinc-500">{hint}</span>}
+        {hint && <span className="ml-1.5 text-fg-subtle">{hint}</span>}
       </span>
     </div>
   );
@@ -40,7 +40,7 @@ export function TokenBreakdownPanel({
   const b = tokenBreakdown(tokens);
   if (!b) {
     return (
-      <div className={cn("w-56 px-1 py-0.5 text-[11px] text-zinc-500", className)}>
+      <div className={cn("w-56 px-1 py-0.5 text-[11px] text-fg-subtle", className)}>
         No token usage yet
       </div>
     );
@@ -51,7 +51,7 @@ export function TokenBreakdownPanel({
 
   return (
     <div className={cn("w-56 text-[11px]", className)}>
-      <div className="px-1 pb-1 text-[9.5px] font-medium uppercase tracking-wider text-zinc-600">
+      <div className="px-1 pb-1 text-[9.5px] font-medium uppercase tracking-wider text-fg-faint">
         Token usage
       </div>
       <Row label="Input" value={formatTokens(b.input)} />
@@ -65,7 +65,7 @@ export function TokenBreakdownPanel({
         />
       )}
       <Row label="Output" value={formatTokens(b.output)} />
-      <div className="my-1.5 h-px bg-zinc-800" />
+      <div className="my-1.5 h-px bg-raised" />
       <Row label="Total" value={formatTokens(b.total)} strong />
       {cost != null && <Row label="Cost" value={formatCost(cost)} />}
     </div>
@@ -119,9 +119,9 @@ export function TokenStats({
           if (e.key === "Escape") setOpen(false);
         }}
         className={cn(
-          "rounded-md bg-zinc-900 px-2 py-1 font-mono text-[10.5px] text-zinc-400 transition",
-          "hover:bg-zinc-800 hover:text-zinc-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-zinc-600",
-          open && "bg-zinc-800 text-zinc-200",
+          "rounded-md bg-panel px-2 py-1 font-mono text-[10.5px] text-fg-muted transition",
+          "hover:bg-raised hover:text-fg focus:outline-none focus-visible:ring-1 focus-visible:ring-line-focus",
+          open && "bg-raised text-fg",
         )}
       >
         {formatTokens(tokens?.total)} tok
@@ -130,7 +130,7 @@ export function TokenStats({
         // Padding on the wrapper bridges the gap to the chip so the pointer
         // can travel into the panel without a mouseleave flicker.
         <div className={cn("absolute top-full z-50 pt-1.5", align === "left" ? "left-0" : "right-0")}>
-          <div className="rounded-xl border border-zinc-700/70 bg-zinc-900 p-2 shadow-2xl">
+          <div className="rounded-xl border border-line-strong/70 bg-panel p-2 shadow-2xl">
             <TokenBreakdownPanel tokens={tokens} cost={cost} />
           </div>
         </div>
@@ -161,7 +161,7 @@ export function SessionStatChips({
     <div className={cn("flex items-center gap-1.5", className)}>
       <TokenStats tokens={tokens} cost={cost} align={align} />
       <span
-        className="rounded-md bg-zinc-900 px-2 py-1 font-mono text-[10.5px] text-zinc-400"
+        className="rounded-md bg-panel px-2 py-1 font-mono text-[10.5px] text-fg-muted"
         title="Cost"
       >
         {formatCost(cost)}
@@ -170,7 +170,7 @@ export function SessionStatChips({
         <span
           className={cn(
             "rounded-md px-2 py-1 font-mono text-[10.5px]",
-            (ctx.percent ?? 0) > 80 ? "bg-amber-500/10 text-amber-300" : "bg-zinc-900 text-zinc-400",
+            (ctx.percent ?? 0) > 80 ? "bg-warning/10 text-warning-soft" : "bg-panel text-fg-muted",
           )}
           title={`Context: ${formatTokens(ctx.tokens)} / ${formatTokens(ctx.contextWindow)}`}
         >

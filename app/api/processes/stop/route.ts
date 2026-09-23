@@ -1,5 +1,5 @@
-import { readJson, ok, toErrorMessage, fail } from "@/lib/api";
-import { stopProcess } from "@/lib/pi/manager";
+import { control } from "@/lib/control";
+import { fail, mapControlError, ok, readJson } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,9 +19,8 @@ export async function POST(req: Request) {
       return fail("id must be a session id or null (server process)");
     }
     const force = body.force === true;
-    const stopped = stopProcess(raw, { force });
-    return ok({ stopped });
+    return ok(await control.processes.stop(raw as string | null, { force }));
   } catch (err) {
-    return fail(toErrorMessage(err), 500);
+    return mapControlError(err);
   }
 }

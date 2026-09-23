@@ -2,7 +2,7 @@
 
 import { AlertTriangle, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AgentMessage, AssistantMessage, ToolCallContent } from "@/lib/pi/types";
+import type { AgentMessage, AssistantMessage, ToolCallContent } from "@/lib/control/types";
 import { Markdown } from "./Markdown";
 import { BashExecutionBlock, ThinkingBlock, ToolCallCard } from "./ToolCallCard";
 
@@ -40,14 +40,14 @@ export function MessageItem({
     // Skip internal bash-context echoes? No — bashExecution covers those.
     return (
       <div className="fade-up flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md border border-zinc-700/40 bg-zinc-800/70 px-4 py-2.5">
-          <div className="mb-1 flex items-center justify-end gap-1.5 text-[11px] font-medium text-zinc-500">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md border border-line-strong/40 bg-raised/70 px-4 py-2.5">
+          <div className="mb-1 flex items-center justify-end gap-1.5 text-[11px] font-medium text-fg-subtle">
             <User size={11} />
             You
           </div>
-          <div className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-zinc-100">{text}</div>
+          <div className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-fg">{text}</div>
           {hasImage && (
-            <div className="mt-1.5 text-[11px] text-zinc-500">+ attached image(s)</div>
+            <div className="mt-1.5 text-[11px] text-fg-subtle">+ attached image(s)</div>
           )}
         </div>
       </div>
@@ -72,10 +72,10 @@ export function MessageItem({
             />
           ))}
           {texts.map((t, i) => (
-            <div key={`tx-${i}`} className="min-w-0 text-zinc-200">
+            <div key={`tx-${i}`} className="min-w-0 text-fg">
               <Markdown text={t.type === "text" ? t.text : ""} />
               {streaming && i === texts.length - 1 && calls.length === 0 && (
-                <span className="streaming-dot ml-1 inline-block h-3.5 w-1.5 translate-y-0.5 rounded-sm bg-zinc-400" />
+                <span className="streaming-dot ml-1 inline-block h-3.5 w-1.5 translate-y-0.5 rounded-sm bg-fg-muted" />
               )}
             </div>
           ))}
@@ -109,14 +109,14 @@ export function MessageItem({
       <div
         className={cn(
           "overflow-hidden rounded-xl border text-[12px]",
-          m.isError ? "border-red-500/25 bg-red-500/[0.04]" : "border-zinc-800/80 bg-zinc-900/40",
+          m.isError ? "border-danger/25 bg-danger/[0.04]" : "border-line/80 bg-panel/40",
         )}
       >
-        <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-zinc-500">
-          {m.isError && <AlertTriangle size={11} className="text-red-400" />}
+        <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-fg-subtle">
+          {m.isError && <AlertTriangle size={11} className="text-danger" />}
           <span className="font-mono">{m.toolName ?? "tool"} result</span>
         </div>
-        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words border-t border-zinc-800/60 px-3 py-2 font-mono text-[11.5px] text-zinc-400">
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words border-t border-line/60 px-3 py-2 font-mono text-[11.5px] text-fg-muted">
           {text.slice(0, 4000)}
         </pre>
       </div>

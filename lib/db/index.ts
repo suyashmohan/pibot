@@ -61,7 +61,8 @@ async function createDb(): Promise<BunSQLiteDatabase<typeof schema>> {
           pi_session_id TEXT,
           pi_session_file TEXT,
           created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL
+          updated_at INTEGER NOT NULL,
+          last_turn_ms INTEGER
         );
         CREATE TABLE IF NOT EXISTS messages (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +81,22 @@ async function createDb(): Promise<BunSQLiteDatabase<typeof schema>> {
     }
   } catch (err) {
     console.error("[db] migration failed", err);
+  }
+
+  // Lightweight schema evolution: `CREATE TABLE IF NOT EXISTS` cannot add
+  // columns to a database created by an older build, so new columns need an
+  // explicit idempotent ALTER (the user's data/pibot.db predates them).
+  try {
+    const columns = new Set(
+      (
+        sqlite.query("PRAGMA table_info(sessions)").all() as Array<{ name?: unknown }>
+      ).map((r) => String(r.name ?? "")),
+    );
+    if (!columns.has("last_turn_ms")) {
+      sqlite.exec("ALTER TABLE sessions ADD COLUMN last_turn_ms INTEGER");
+    }
+  } catch (err) {
+    console.error("[db] column migration failed", err);
   }
 
   globalThis.__pibotSqlite = sqlite;

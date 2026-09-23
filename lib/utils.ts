@@ -33,6 +33,21 @@ export function formatCost(n?: number | null): string {
   return `$${n.toFixed(2)}`;
 }
 
+/**
+ * Compact duration for turn timing: "0.4s", "12s", "2m 5s", "1h 30m".
+ * Sub-10s keeps one decimal; rounding across a minute boundary prints
+ * "1m 0s" instead of a confusing "60s".
+ */
+export function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  if (ms < 10_000) return `${(ms / 1000).toFixed(1)}s`;
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const totalMin = Math.floor(totalSec / 60);
+  if (totalMin < 60) return `${totalMin}m ${totalSec % 60}s`;
+  return `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`;
+}
+
 /** Raw token counters as reported by pi's `get_session_stats` (all optional). */
 export interface TokenUsageLike {
   input?: number | null;

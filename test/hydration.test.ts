@@ -17,6 +17,7 @@ import { loadReactDom } from "./helpers/dom";
 import { Window } from "happy-dom";
 import { AppShell } from "@/components/AppShell";
 import { FileBrowser } from "@/components/FileBrowser";
+import { THEME_ATTRIBUTE, THEME_STORAGE_KEY } from "@/lib/themes";
 import type { BrowseEntry } from "@/lib/file-browser";
 
 const HYDRATION_ENTRIES: BrowseEntry[] = [
@@ -235,6 +236,38 @@ describe("AppShell hydration", () => {
     expect(errors.filter((e) => /hydrat/i.test(e))).toEqual([]);
     expect(doc.body.innerHTML).toContain("pic.png");
     expect(doc.body.innerHTML).toContain("images%2Fpic.png"); // gallery thumbnails
+
+    await act(async () => {
+      root?.unmount();
+    });
+  }, 30_000);
+
+  test("a persisted light theme hydrates without warnings and applies after mount", async () => {
+    // SSR has no localStorage: both server and first client render use the
+    // default theme. The stored preference is applied in an effect (the boot
+    // script in app/layout.tsx paints it before hydration in the real app).
+    clearDomGlobals();
+    const ssr = renderToString(createElement(AppShell));
+    expect(ssr).toContain("<aside");
+
+    const win = installMobileDom([]);
+    win.localStorage.setItem(THEME_STORAGE_KEY, "light");
+    const doc = win.document as unknown as Document;
+    const container = doc.createElement("div");
+    container.innerHTML = ssr;
+    doc.body.appendChild(container);
+
+    startCapture();
+    let root: ReturnType<typeof hydrateRoot> | null = null;
+    const reactDom = await loadReactDom();
+    await act(async () => {
+      root = reactDom.hydrateRoot(container as unknown as Element, createElement(AppShell));
+    });
+    await act(async () => {}); // flush the theme effect
+    const errors = stopCapture();
+
+    expect(errors.filter((e) => /hydrat/i.test(e))).toEqual([]);
+    expect(doc.documentElement.getAttribute(THEME_ATTRIBUTE)).toBe("light");
 
     await act(async () => {
       root?.unmount();

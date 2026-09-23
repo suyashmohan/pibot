@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { baseName, cn, formatCost, formatTokens, timeAgo, tokenBreakdown, truncate, uid } from "@/lib/utils";
+import { baseName, cn, formatCost, formatDuration, formatTokens, timeAgo, tokenBreakdown, truncate, uid } from "@/lib/utils";
 
 describe("cn", () => {
   test("merges and dedupes tailwind classes", () => {
@@ -35,6 +35,30 @@ describe("formatCost", () => {
     expect(formatCost(0)).toBe("$0.00");
     expect(formatCost(0.001)).toBe("$0.0010");
     expect(formatCost(1.5)).toBe("$1.50");
+  });
+});
+
+describe("formatDuration", () => {
+  test("sub-10s turns keep one decimal", () => {
+    expect(formatDuration(0)).toBe("0.0s");
+    expect(formatDuration(400)).toBe("0.4s");
+    expect(formatDuration(3_400)).toBe("3.4s");
+    expect(formatDuration(9_960)).toBe("10.0s");
+  });
+
+  test("seconds, then minutes, then hours", () => {
+    expect(formatDuration(10_000)).toBe("10s");
+    expect(formatDuration(12_400)).toBe("12s");
+    // Rounds up across the minute boundary instead of printing “60s”.
+    expect(formatDuration(59_600)).toBe("1m 0s");
+    expect(formatDuration(125_000)).toBe("2m 5s");
+    expect(formatDuration(3_600_000)).toBe("1h 0m");
+    expect(formatDuration(5_430_000)).toBe("1h 30m");
+  });
+
+  test("missing or negative durations render as an em dash", () => {
+    expect(formatDuration(Number.NaN)).toBe("—");
+    expect(formatDuration(-1)).toBe("—");
   });
 });
 

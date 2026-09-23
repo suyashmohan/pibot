@@ -82,6 +82,7 @@ describe("sidebar project/session nesting", () => {
     piSessionFile: null,
     createdAt: now,
     updatedAt: now,
+    lastTurnMs: null,
     preview: "hello",
     messageCount: 2,
   };

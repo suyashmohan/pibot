@@ -12,7 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AgentMessage, ToolCallContent } from "@/lib/pi/types";
+import type { AgentMessage, ToolCallContent } from "@/lib/control/types";
 import { Markdown } from "./Markdown";
 
 function formatArgs(args: Record<string, unknown>): string {
@@ -65,18 +65,18 @@ export function ToolCallCard({
     <div
       className={cn(
         "overflow-hidden rounded-xl border text-left",
-        isError ? "border-red-500/30 bg-red-500/[0.04]" : "border-zinc-800 bg-zinc-900/60",
+        isError ? "border-danger/30 bg-danger/[0.04]" : "border-line bg-panel/60",
       )}
     >
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition hover:bg-zinc-800/40"
+        className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition hover:bg-raised/40"
       >
         <span
           className={cn(
             "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-            isError ? "bg-red-500/15 text-red-400" : "bg-zinc-800 text-zinc-300",
+            isError ? "bg-danger/15 text-danger" : "bg-raised text-fg-secondary",
           )}
         >
           {running ? (
@@ -84,38 +84,38 @@ export function ToolCallCard({
           ) : isError ? (
             <XCircle size={13} />
           ) : result ? (
-            <CheckCircle2 size={13} className="text-emerald-400" />
+            <CheckCircle2 size={13} className="text-success" />
           ) : (
             <Wrench size={13} />
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="font-mono text-[12.5px] font-medium text-zinc-200">{call.name}</span>
+          <span className="font-mono text-[12.5px] font-medium text-fg">{call.name}</span>
           {summary && (
-            <span className="ml-2 truncate font-mono text-[12px] text-zinc-500">{summary}</span>
+            <span className="ml-2 truncate font-mono text-[12px] text-fg-subtle">{summary}</span>
           )}
         </span>
-        {running && <span className="text-[11px] text-zinc-500">running…</span>}
+        {running && <span className="text-[11px] text-fg-subtle">running…</span>}
         <ChevronDown
           size={14}
-          className={cn("shrink-0 text-zinc-500 transition-transform", open && "rotate-180")}
+          className={cn("shrink-0 text-fg-subtle transition-transform", open && "rotate-180")}
         />
       </button>
       {open && (
-        <div className="border-t border-zinc-800/80 px-3 py-2.5">
-          <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-zinc-500">
+        <div className="border-t border-line/80 px-3 py-2.5">
+          <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle">
             Arguments
           </div>
-          <pre className="overflow-x-auto rounded-lg bg-zinc-950/80 p-2.5 font-mono text-[11.5px] leading-relaxed text-zinc-300">
+          <pre className="overflow-x-auto rounded-lg bg-app/80 p-2.5 font-mono text-[11.5px] leading-relaxed text-fg-secondary">
             {formatArgs(call.arguments ?? {})}
           </pre>
           {(resultText || running) && (
             <>
-              <div className="mb-1.5 mt-3 text-[10.5px] font-semibold uppercase tracking-wider text-zinc-500">
+              <div className="mb-1.5 mt-3 text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle">
                 {running && !result ? "Live output" : "Result"}
               </div>
-              <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-zinc-950/80 p-2.5 font-mono text-[11.5px] leading-relaxed text-zinc-300">
-                {resultText || <span className="text-zinc-600">…</span>}
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-app/80 p-2.5 font-mono text-[11.5px] leading-relaxed text-fg-secondary">
+                {resultText || <span className="text-fg-faint">…</span>}
               </pre>
             </>
           )}
@@ -129,11 +129,11 @@ export function ThinkingBlock({ text, streaming }: { text: string; streaming?: b
   const [open, setOpen] = useState(false);
   const preview = text.replace(/\s+/g, " ").slice(0, 110);
   return (
-    <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.05]">
+    <div className="rounded-xl border border-accent-2/20 bg-accent-2/[0.05]">
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-violet-300/90 transition hover:bg-violet-500/10"
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-accent-2/90 transition hover:bg-accent-2/10"
       >
         {streaming ? (
           <Loader2 size={12} className="animate-spin" />
@@ -141,11 +141,11 @@ export function ThinkingBlock({ text, streaming }: { text: string; streaming?: b
           <Brain size={12} className="shrink-0" />
         )}
         <span className="font-medium">{streaming ? "Thinking…" : "Reasoning"}</span>
-        {!open && <span className="truncate text-violet-300/50">{preview}</span>}
+        {!open && <span className="truncate text-accent-2/50">{preview}</span>}
         <ChevronDown size={13} className={cn("ml-auto shrink-0 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="border-t border-violet-500/15 px-3 py-2 text-[12.5px] leading-relaxed text-zinc-400">
+        <div className="border-t border-accent-2/15 px-3 py-2 text-[12.5px] leading-relaxed text-fg-muted">
           <Markdown text={text} />
         </div>
       )}
@@ -162,29 +162,29 @@ export function BashExecutionBlock({ message }: { message: AgentMessage }) {
   };
   const [open, setOpen] = useState(true);
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0c0c0e]">
+    <div className="overflow-hidden rounded-xl border border-line bg-code">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-800/30"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-raised/30"
       >
-        <Terminal size={13} className="shrink-0 text-zinc-400" />
-        <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-zinc-300">
+        <Terminal size={13} className="shrink-0 text-fg-muted" />
+        <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg-secondary">
           $ {m.command}
         </code>
         <span
           className={cn(
             "rounded-full px-2 py-0.5 font-mono text-[10.5px]",
-            m.exitCode === 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400",
+            m.exitCode === 0 ? "bg-success/10 text-success" : "bg-danger/10 text-danger",
           )}
         >
           {m.exitCode === 0 ? "exit 0" : `exit ${m.exitCode}`}
         </span>
-        <ChevronDown size={13} className={cn("text-zinc-500 transition-transform", open && "rotate-180")} />
+        <ChevronDown size={13} className={cn("text-fg-subtle transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words border-t border-zinc-800/70 px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-zinc-400">
-          {m.output || <span className="text-zinc-600">(no output)</span>}
-          {m.truncated && <span className="text-amber-400/80">{"\n…(truncated)"}</span>}
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words border-t border-line/70 px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-fg-muted">
+          {m.output || <span className="text-fg-faint">(no output)</span>}
+          {m.truncated && <span className="text-warning/80">{"\n…(truncated)"}</span>}
         </pre>
       )}
     </div>
@@ -193,7 +193,7 @@ export function BashExecutionBlock({ message }: { message: AgentMessage }) {
 
 export function PendingBadge() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700/60 bg-zinc-800/60 px-2.5 py-1 text-[11px] text-zinc-400">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-line-strong/60 bg-raised/60 px-2.5 py-1 text-[11px] text-fg-muted">
       <CircleDashed size={11} className="streaming-dot" />
       working
     </span>

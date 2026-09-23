@@ -1,4 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { $ } from "bun";
+import { Database } from "bun:sqlite";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { messages, sessions, settings } from "@/lib/db/schema";
@@ -23,6 +25,53 @@ describe("sqlite schema (temp DB per test)", () => {
     const row = db.select().from(sessions).where(eq(sessions.id, id)).get();
     expect(row?.name).toBe("t");
     expect(row?.cwd).toBe("/tmp");
+    expect(row?.lastTurnMs).toBeNull();
+  });
+
+  test("adds last_turn_ms to a database created before the column existed", async () => {
+    // Existing installs were created by the `CREATE TABLE IF NOT EXISTS`
+    // fallback, which cannot evolve a schema — the ALTER must be idempotent
+    // and run against the user's existing data/pibot.db.
+    const file = `/tmp/${uniqueId("pibot-old")}.db`;
+    try {
+      const old = new Database(file, { create: true });
+      old.exec(`
+        CREATE TABLE sessions (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL DEFAULT 'New session',
+          cwd TEXT NOT NULL,
+          provider TEXT,
+          model_id TEXT,
+          thinking_level TEXT,
+          pi_session_id TEXT,
+          pi_session_file TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+      old.close();
+
+      process.env.DATABASE_URL = `file:${file}`;
+      const g = globalThis as unknown as Record<string, unknown>;
+      g.__pibotDbPromise = undefined;
+      g.__pibotSqlite = undefined;
+
+      const db = await getDb();
+      const id = uniqueId("s");
+      db.insert(sessions)
+        .values({ id, name: "old", cwd: "/tmp", createdAt: 1, updatedAt: 1 })
+        .run();
+      const row = db.select().from(sessions).where(eq(sessions.id, id)).get();
+      expect(row?.lastTurnMs).toBeNull();
+    } finally {
+      for (const suffix of ["", "-wal", "-shm", "-journal"]) {
+        try {
+          await $`rm -f ${file + suffix}`.quiet();
+        } catch {
+          /* best effort */
+        }
+      }
+    }
   });
 
   test("deleting a session cascades to its messages", async () => {

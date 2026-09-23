@@ -1,5 +1,5 @@
-import { getLiveClient, readCachedMessages, syncMessagesFromPi } from "@/lib/pi/manager";
-import { fail, ok, toErrorMessage } from "@/lib/api";
+import { control } from "@/lib/control";
+import { mapControlError, ok } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,15 +14,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
   try {
-    if (getLiveClient(id)) {
-      return ok({ messages: await syncMessagesFromPi(id), live: true });
-    }
-    return ok({ messages: await readCachedMessages(id), live: false });
+    return ok(await control.sessions.getMessages(id));
   } catch (err) {
-    try {
-      return ok({ messages: await readCachedMessages(id), live: false, liveError: toErrorMessage(err) });
-    } catch (err2) {
-      return fail(toErrorMessage(err2), 500);
-    }
+    return mapControlError(err);
   }
 }
