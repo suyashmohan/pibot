@@ -11,6 +11,15 @@ your machine. Run it in [Docker](#docker) so that shell lives in a container
 instead of your account. Do not expose it to the internet — see
 [Security](#security).
 
+## Screenshot
+
+![PiBot showing a chat transcript next to the project sidebar, git rail and file browser](./docs/screenshot.png)
+
+*Dark theme: project-grouped sidebar, streamed transcript with tool output, and
+the right-hand rail (Files/Git).*
+
+## Features
+
 - **One web session = one `pi --mode rpc` subprocess** running in the session's
   working directory (where `read` / `write` / `edit` / `bash` operate).
 - **Live streaming** via Server-Sent Events: text/thinking deltas, tool
